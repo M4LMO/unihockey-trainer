@@ -3,13 +3,14 @@
 //  erfassen, bewerten (Schulnoten 1–6) und nachschauen.
 //
 //  Ansichten (Hash):
-//    #/linien            Übersicht (Tabs: Einsätze / Personen / Chemie)
+//    #/linien            Übersicht (Tabs: Einsätze / Personen / Chemie / Auswertung)
 //    #/linien/e/<id>     ein Einsatz (Aufstellen / Screenshot / Bewerten)
 //    #/linien/p/<id>     Historie einer Person
 // ============================================================
 import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
 import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel } from './kontext.js';
+import { zeichneAuswertung } from './linien-auswertung.js';
 
 // ---- Arten von Formationen und Systeme -------------------------
 const ARTEN = {
@@ -33,7 +34,7 @@ const SYSTEME = {
 const ROLLEN = { V: 'Verteidigung', S: 'Sturm', flex: 'flexibel' };
 const WETTBEWERB = { meisterschaft: 'Meisterschaft', cup: 'Cup', test: 'Testspiel' };
 const ORT = { heim: 'Heim', auswaerts: 'Auswärts' };
-const TABS = ['einsaetze', 'personen', 'chemie'];
+const TABS = ['einsaetze', 'personen', 'chemie', 'auswertung'];
 
 // ---- kleine Helfer ---------------------------------------------
 const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -220,6 +221,7 @@ export async function mount(root) {
           <button data-t="einsaetze" class="${tab === 'einsaetze' ? 'on' : ''}">Einsätze</button>
           <button data-t="personen" class="${tab === 'personen' ? 'on' : ''}">Personen</button>
           <button data-t="chemie" class="${tab === 'chemie' ? 'on' : ''}">Chemie</button>
+          <button data-t="auswertung" class="${tab === 'auswertung' ? 'on' : ''}">Auswertung</button>
         </div>
         <div class="ln-tab"><p class="muted pad">Lade …</p></div>`;
       inhalt.querySelector('.ln-tabs').onclick = e => {
@@ -230,9 +232,11 @@ export async function mount(root) {
       };
       const ziel = inhalt.querySelector('.ln-tab');
       const fab = box.querySelector('.fab');
-      fab.hidden = nurLesen() || tab === 'personen';
+      fab.hidden = nurLesen() || tab === 'personen' || tab === 'auswertung';
       if (tab === 'einsaetze') await tabEinsaetze(ziel, fab);
       else if (tab === 'personen') await tabPersonen(ziel);
+      else if (tab === 'auswertung') zeichneAuswertung(ziel, await ladeBaum(S.liste.id),
+        { kMap: S.kMap, kurz: S.kurz, personen: S.kader.filter(istFeld) });
       else await tabChemie(ziel, fab);
     }
 
@@ -367,7 +371,7 @@ export async function mount(root) {
   // Alle Einsätze eines Kaders mit Versionen, Linien und Personen
   async function ladeBaum(listeId) {
     const d = await db(sb.from('einsaetze')
-      .select('id, datum, typ, titel, erstellt_am, varianten(id, nr, name, linien(id, art, nr, name, system, note, linien_spieler(kader_id, gast_name, posten, rolle)))')
+      .select('id, datum, typ, titel, erstellt_am, varianten(id, nr, name, linien(id, art, nr, name, system, note, anzahl, tore, linien_spieler(kader_id, gast_name, posten, rolle)))')
       .eq('liste_id', listeId));
     return d.sort((a, b) => b.datum.localeCompare(a.datum) || b.erstellt_am.localeCompare(a.erstellt_am));
   }

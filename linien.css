@@ -4,6 +4,7 @@
 .ln { padding: 14px; }
 .ln .seg { margin-top: 12px; }
 .ln-tabs { display: flex; }
+.ln-tabs button { padding: 7px 4px; font-size: .85rem; }
 .ln-tabs button, .ln-modus button { flex: 1; }
 .ln-modus { display: flex; }
 a.karte { text-decoration: none; }
@@ -181,3 +182,39 @@ body.ln-fokus main { padding-bottom: 24px; }
 }
 .ln-v-kopf { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .ln-verlauf small { font-size: .82rem; }
+
+/* ---- Auswertung ---- */
+.aw-steuer { display: grid; gap: 10px; margin-top: 12px; }
+.aw-steuer .seg { display: flex; margin: 0; }
+.aw-steuer .seg button { flex: 1; padding: 7px 6px; }
+.aw-filter { display: flex; gap: 10px; }
+.aw-filter label { flex: 1; min-width: 0; }
+.aw-filter select { padding: 8px 10px; }
+.aw-check { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.aw-check input { width: auto; }
+.aw-erkl { margin: 0 2px 8px; }
+.aw-leer { margin: 0 2px; }
+.aw-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.aw-zeile {
+  display: flex; gap: 12px; align-items: center; background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 10px 12px;
+}
+.aw-zeile.wenig { opacity: .7; }
+.aw-haupt { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.aw-namen { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.aw-p { background: var(--bg); border-radius: 99px; padding: 2px 9px; font-size: .88rem; white-space: nowrap; }
+.aw-p.r-V { box-shadow: inset 3px 0 0 #0f766e; }
+.aw-p.r-S { box-shadow: inset 3px 0 0 var(--team); }
+.aw-p.r-flex { box-shadow: inset 3px 0 0 #64748b; }
+.aw-gruppe { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.aw-plus { color: var(--muted); font-weight: 800; }
+.aw-info { font-size: .78rem; color: var(--muted); }
+.aw-var { font-size: .78rem; color: #92400e; background: #fef3c7; border-radius: 8px; padding: 3px 8px; justify-self: start; }
+.aw-quote { font-size: .8rem; color: var(--ok); }
+.aw-wert { flex: none; width: 56px; display: grid; justify-items: center; gap: 4px; }
+.aw-note { font-size: 1.35rem; font-weight: 800; color: var(--team); font-variant-numeric: tabular-nums; }
+.aw-zeile.wenig .aw-note { color: var(--muted); }
+.aw-bar { width: 100%; height: 5px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.aw-bar i { display: block; height: 100%; background: var(--team); }
+.aw-mehr { margin-top: 8px; }
+.aw-block { margin-bottom: 8px; }
