@@ -5,12 +5,13 @@ import { sb } from './supabase.js';
 import { APP_NAME } from './config.js';
 import { esc, toast, fehlerText } from './ui.js';
 import * as kader from './kader.js';
+import * as linien from './linien.js';
 
 // ---- Liste aller Tools ---------------------------------------
 // Neue Tools werden hier eingetragen (soon: true = noch in Arbeit)
 const TOOLS = [
   { id: 'kader',     name: 'Kader',            icon: '👥', desc: 'Spieler:innen & Staff pro Saison', modul: kader },
-  { id: 'linien',    name: 'Linien',           icon: '🧩', desc: 'Blöcke aufstellen',         soon: true },
+  { id: 'linien',    name: 'Linien',           icon: '🧩', desc: 'Aufstellen & bewerten',     modul: linien },
   { id: 'praesenz',  name: 'Präsenz',          icon: '✅', desc: 'Anwesenheit im Training',   soon: true },
   { id: 'taktik',    name: 'Taktikboard',      icon: '📋', desc: 'Spielzüge zeichnen',        soon: true },
   { id: 'statistik', name: 'Match-Statistik',  icon: '📊', desc: 'Live im Spiel erfassen',    soon: true },
