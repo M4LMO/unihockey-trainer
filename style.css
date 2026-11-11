@@ -162,7 +162,7 @@ a.tile:active { transform: scale(.98); }
   box-shadow: 0 20px 60px rgba(0,0,0,.3);
 }
 .dlg::backdrop { background: rgba(15,23,42,.5); }
-.dlg form { display: grid; gap: 14px; padding: 22px; }
+.dlg-person form { display: grid; gap: 14px; padding: 22px; }
 .dlg h2 { margin: 0; font-size: 1.2rem; }
 .dlg .seg { justify-self: start; }
 .dlg-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
@@ -177,3 +177,46 @@ a.tile:active { transform: scale(.98); }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #toast.ok { background: var(--ok); }
 #toast.error { background: var(--err); }
+
+/* ---- Saison / Team Auswahl ---- */
+.kontext { display: flex; gap: 10px; align-items: end; justify-content: space-between; }
+.sel-wrap { flex: 1; max-width: 220px; }
+.team-chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 2px 4px; scrollbar-width: none; }
+.team-chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; display: grid; text-align: left; font: inherit; font-weight: 600; font-size: .9rem;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+  padding: 7px 14px; border-radius: 99px; cursor: pointer; line-height: 1.15;
+}
+.chip small { font-weight: 500; font-size: .7rem; color: var(--muted); }
+.chip.on { background: var(--team); border-color: var(--team); color: #fff; }
+.chip.on small { color: #ffe4e6; }
+
+.hinweis {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 20px; margin-top: 14px; display: grid; gap: 12px;
+}
+.hinweis h3, .hinweis p { margin: 0; }
+.klein { font-size: .82rem; margin: 0; }
+.banner {
+  background: #fef3c7; color: #92400e; border-radius: 10px; padding: 8px 12px;
+  font-size: .9rem; font-weight: 600; margin: 12px 0 0;
+}
+.kader .toolbar { margin-top: 12px; }
+
+/* ---- Verwaltung ---- */
+.dlg-verwaltung { width: min(520px, calc(100% - 24px)); }
+.dlg-body { display: grid; gap: 10px; padding: 22px; max-height: 85dvh; overflow-y: auto; }
+.dlg-body h2 { margin: 0; }
+.dlg-body .gruppe { margin: 14px 0 0; }
+.vw-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.vw-liste li {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  background: var(--bg); border-radius: 10px;
+}
+.vw-liste li.archiviert .vw-name { color: var(--muted); }
+.vw-name { flex: 1; min-width: 0; font-weight: 600; }
+.vw-name small { display: block; font-weight: 500; font-size: .75rem; }
+.vw-liste .badge { position: static; margin-left: 6px; }
+.vw-add { display: flex; gap: 6px; flex-wrap: wrap; }
+.vw-add input { flex: 1 1 140px; padding: 8px 10px; }

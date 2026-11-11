@@ -28,5 +28,6 @@ export function fehlerText(err) {
   if (/Invalid login credentials/i.test(m)) return 'E-Mail oder Passwort falsch.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Keine Verbindung – Internet prüfen.';
   if (/JWT|expired/i.test(m)) return 'Sitzung abgelaufen – bitte neu einloggen.';
+  if (/duplicate key|unique/i.test(m)) return 'Gibt es bereits.';
   return m;
 }

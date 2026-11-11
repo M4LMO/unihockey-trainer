@@ -9,7 +9,7 @@ import * as kader from './kader.js';
 // ---- Liste aller Tools ---------------------------------------
 // Neue Tools werden hier eingetragen (soon: true = noch in Arbeit)
 const TOOLS = [
-  { id: 'kader',     name: 'Kader',            icon: '👥', desc: 'Spieler & Staff verwalten', modul: kader },
+  { id: 'kader',     name: 'Kader',            icon: '👥', desc: 'Spieler:innen & Staff pro Saison', modul: kader },
   { id: 'linien',    name: 'Linien',           icon: '🧩', desc: 'Blöcke aufstellen',         soon: true },
   { id: 'praesenz',  name: 'Präsenz',          icon: '✅', desc: 'Anwesenheit im Training',   soon: true },
   { id: 'taktik',    name: 'Taktikboard',      icon: '📋', desc: 'Spielzüge zeichnen',        soon: true },
