@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0f172a"/>
+  <!-- Stock -->
+  <path d="M150 96 L300 336 Q318 366 352 366 L410 366" fill="none" stroke="#e11d48" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Ball mit Löchern -->
+  <circle cx="200" cy="370" r="62" fill="#ffffff"/>
+  <g fill="#0f172a" opacity=".85">
+    <circle cx="200" cy="370" r="11"/>
+    <circle cx="200" cy="332" r="9"/>
+    <circle cx="200" cy="408" r="9"/>
+    <circle cx="163" cy="358" r="9"/>
+    <circle cx="237" cy="358" r="9"/>
+    <circle cx="177" cy="398" r="9"/>
+    <circle cx="223" cy="398" r="9"/>
+  </g>
+</svg>
