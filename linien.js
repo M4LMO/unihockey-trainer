@@ -11,6 +11,7 @@ import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
 import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel } from './kontext.js';
 import { zeichneAuswertung } from './linien-auswertung.js';
+import { andereNummern, auchNr } from './nummern.js';
 
 // ---- Arten von Formationen und Systeme -------------------------
 const ARTEN = {
@@ -293,13 +294,14 @@ export async function mount(root) {
         stat.set(r.kader_id, s);
       }
       const personen = S.kader.filter(istFeld).sort((a, b) => (b.aktiv - a.aktiv) || (a.nummer ?? 999) - (b.nummer ?? 999) || a.name.localeCompare(b.name, 'de'));
+      const andere = andereNummern(S.kader, baum.flatMap(e => e.match_aufstellung || []));
       ziel.innerHTML = personen.length ? `
         <p class="summary muted">Tippe auf eine Person für ihre Linien-Historie.</p>
         <ul class="karten">${personen.map(k => {
           const s = stat.get(k.id); const d = s ? schnitt(s.noten) : null;
           return `<li><a class="karte ${k.aktiv ? '' : 'ln-inaktiv'}" href="#/linien/p/${k.id}">
             <span class="nr">${k.nummer ?? '–'}</span>
-            <span class="info"><strong>${esc(k.name)}</strong>
+            <span class="info"><strong>${esc(k.name)}${auchNr(andere.get(k.id))}</strong>
               <small>${s ? plural(s.einsaetze.size, 'Einsatz', 'Einsätze') : 'noch keine Einsätze'}${d != null ? ` · Ø ${d.toFixed(1)}` : ''}${k.aktiv ? '' : ' · inaktiv'}</small></span>
           </a></li>`;
         }).join('')}</ul>` : '<p class="muted pad leer">Keine Feldspieler:innen im Kader.</p>';
@@ -371,7 +373,7 @@ export async function mount(root) {
   // Alle Einsätze eines Kaders mit Versionen, Linien und Personen
   async function ladeBaum(listeId) {
     const d = await db(sb.from('einsaetze')
-      .select('id, datum, typ, titel, erstellt_am, varianten(id, nr, name, linien(id, art, nr, name, system, note, anzahl, tore, linien_spieler(kader_id, gast_name, posten, rolle))), match_ereignisse(id, art, zeit, kader_id, assist_id, situation, minuten, variante_id, linie_id)')
+      .select('id, datum, typ, titel, erstellt_am, varianten(id, nr, name, linien(id, art, nr, name, system, note, anzahl, tore, linien_spieler(kader_id, gast_name, posten, rolle))), match_ereignisse(id, art, zeit, kader_id, assist_id, situation, minuten, variante_id, linie_id), match_aufstellung(kader_id, nummer)')
       .eq('liste_id', listeId));
     return d.sort((a, b) => b.datum.localeCompare(a.datum) || b.erstellt_am.localeCompare(a.erstellt_am));
   }
@@ -881,7 +883,7 @@ export async function mount(root) {
       box.innerHTML = `
         <div class="ln-kopf">
           <a class="btn ghost small" href="#/linien/personen">‹</a>
-          <div class="ln-kopf-info"><strong>${p.nummer != null ? `#${p.nummer} ` : ''}${esc(p.name)}</strong>
+          <div class="ln-kopf-info"><strong>${p.nummer != null ? `#${p.nummer} ` : ''}${esc(p.name)}${auchNr(andereNummern([p], baum.flatMap(e => e.match_aufstellung || [])).get(p.id))}</strong>
             <small class="muted">${esc([p.position === 'Feld' ? 'Feldspieler:in' : null, saison()?.name, teamLabel(team()), p.aktiv ? null : 'inaktiv'].filter(Boolean).join(' · '))}</small></div>
         </div>
         <div class="ln-kacheln">
@@ -896,7 +898,7 @@ export async function mount(root) {
         <h3 class="gruppe">Verlauf <span>${eintraege.length}</span></h3>
         ${eintraege.length ? `<ul class="ln-verlauf">${eintraege.map(x => `
           <li><a href="#/linien/e/${x.e.id}">
-            <div class="ln-v-kopf"><span>${typIcon(x.e.typ)} <b>${esc(datumText(x.e.datum))}</b> ${esc(x.e.titel || '')}</span>
+            <div class="ln-v-kopf"><span>${typIcon(x.e.typ)} <b>${esc(datumText(x.e.datum))}</b> ${esc(x.e.titel || '')}${(() => { const n = x.e.match_aufstellung?.find(a => a.kader_id === p.id)?.nummer; return n != null && n !== p.nummer ? ` <span class="nr-auch">#${n}</span>` : ''; })()}</span>
               <span class="ln-note-klein ${x.l.note == null ? 'leer' : ''}">${noteText(x.l.note)}</span></div>
             <small>${esc(formLabel(x.l))}${x.l.name ? ` „${esc(x.l.name)}“` : ''} · ${x.ich.posten === 'Z' ? `Zusatz (${ROLLEN[x.ich.rolle]})` : esc(x.ich.posten)}${x.mehrVersionen ? ` · ${esc(x.v.name || 'Version ' + x.v.nr)}` : ''}</small>
             <small class="muted">mit ${x.andere.length ? x.andere.map(r => esc(nameVon(r))).join(', ') : 'niemandem'}</small>

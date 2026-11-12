@@ -12,6 +12,7 @@ import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
 import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel } from './kontext.js';
 import * as L from './statistik-logik.js';
+import { andereNummern, auchNr } from './nummern.js';
 
 const TABS = ['matches', 'skorer', 'goalies', 'team'];
 const WETTBEWERB = { meisterschaft: 'Meisterschaft', cup: 'Cup', test: 'Testspiel' };
@@ -230,6 +231,7 @@ export async function mount(root) {
     async function tabSkorer(ziel, matches) {
       const ls = await ladeLinienSpieler(matches.flatMap(m => m.match_ereignisse.map(e => e.linie_id)));
       const { P, pmErfasst, pmTotal } = L.personenStatistik(matches, ls);
+      const andere = andereNummern(S.kader, matches.flatMap(m => m.match_aufstellung));
       const zeigeTabelle = () => {
         const reihen = S.kader.filter(k => istSpieler(k) && !istGoalie(k))
           .map(k => ({ k, s: P.get(k.id) || { sp: 0, t: 0, a: 0, pim: 0, ppT: 0, plus: 0, minus: 0 } }))
@@ -243,7 +245,7 @@ export async function mount(root) {
           <table class="st-tab">
             <thead><tr><th class="li">Spieler:in</th>${th('sp', 'Sp', 'Spiele')}${th('t', 'T', 'Tore')}${th('a', 'A', 'Assists')}${th('p', 'P', 'Punkte')}${th('pim', "Str'", 'Strafminuten')}${th('pm', '+/−', 'Plus/Minus')}</tr></thead>
             <tbody>${reihen.map(x => `<tr class="${x.k.aktiv ? '' : 'st-inaktiv'}">
-              <td class="li"><span class="st-name">${kLabel(x.k.id)}</span><span class="st-bar"><i style="width:${Math.round(100 * x.p / max)}%"></i></span></td>
+              <td class="li"><span class="st-name">${kLabel(x.k.id)}</span>${auchNr(andere.get(x.k.id)).replace('nr-auch', 'nr-auch st-auch')}<span class="st-bar"><i style="width:${Math.round(100 * x.p / max)}%"></i></span></td>
               <td>${x.s.sp}</td><td>${x.s.t}${x.s.ppT ? `<small title="davon im Powerplay">${x.s.ppT}pp</small>` : ''}</td><td>${x.s.a}</td>
               <td class="fett">${x.p}</td><td>${x.s.pim || ''}</td>
               <td class="${x.pm > 0 ? 'plus' : x.pm < 0 ? 'minus' : ''}">${x.s.plus || x.s.minus ? (x.pm > 0 ? '+' : '') + x.pm : ''}</td>
@@ -264,13 +266,14 @@ export async function mount(root) {
     // ---- Goalies ----------------------------------------------
     function tabGoalies(ziel, matches) {
       const { P } = L.personenStatistik(matches);
+      const andere = andereNummern(S.kader, matches.flatMap(m => m.match_aufstellung));
       const reihen = [...P.entries()].filter(([, s]) => s.goalie.sp).map(([id, s]) => ({ id, g: s.goalie }))
         .sort((a, b) => b.g.sek - a.g.sek);
       ziel.innerHTML = reihen.length ? `
         <ul class="st-goalies">${reihen.map(({ id, g }) => {
           const gaa = g.sek ? g.gt * 3600 / g.sek : 0;
           return `<li class="st-karte">
-            <div class="st-g-kopf"><span class="st-g-nr">${kNr(id) ?? '🥅'}</span><strong>${esc(kName(id))}</strong></div>
+            <div class="st-g-kopf"><span class="st-g-nr">${kNr(id) ?? '🥅'}</span><strong>${esc(kName(id))}${auchNr(andere.get(id))}</strong></div>
             <div class="st-kpis">
               <div><b>${g.sp}</b><small>Spiele</small></div>
               <div><b>${Math.round(g.sek / 60)}'</b><small>Spielzeit</small></div>

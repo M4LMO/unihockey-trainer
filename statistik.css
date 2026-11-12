@@ -189,3 +189,4 @@ li.st-ev { cursor: default; }
 /* Match-Nummer ≠ Kader-Nummer */
 .st-sonst { color: #b45309; font-weight: 500; }
 .st-nr { width: 56px !important; flex: none; padding: 6px !important; text-align: center; font-size: 15px !important; }
+.st-tab .st-auch { margin: 3px 0 0; display: inline-block; }

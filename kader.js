@@ -4,6 +4,7 @@
 // ============================================================
 import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
+import { ladeAndereNummern, auchNr } from './nummern.js';
 import {
   ladeStammdaten, ladeKader, getAuswahl, setAuswahl, naechsteSaison, teamLabel,
 } from './kontext.js';
@@ -55,12 +56,14 @@ export async function mount(root) {
   const nurLesen = () => !!saison()?.archiviert;
 
   // ---- Laden ----------------------------------------------------
+  let andere = new Map();   // andere Rückennummern aus Matches
   async function ladeAlles() {
     try {
       st = await ladeStammdaten();
       waehleKontext();
       const l = liste();
       personen = l ? await ladeKader(l.id) : [];
+      andere = await ladeAndereNummern(personen);
       zeichneKontext();
       zeichneInhalt();
       if (vw.open) zeichneVerwaltung();
@@ -116,7 +119,7 @@ export async function mount(root) {
     personen = [];
     inhaltKey = '';
     inhalt.innerHTML = '<p class="muted pad">Lade …</p>';
-    try { if (l) personen = await ladeKader(l.id); } catch (e) { return toast(fehlerText(e), 'error'); }
+    try { if (l) personen = await ladeKader(l.id); andere = await ladeAndereNummern(personen); } catch (e) { return toast(fehlerText(e), 'error'); }
     zeichneInhalt();
   }
 
@@ -240,7 +243,7 @@ export async function mount(root) {
           <li><button class="karte ${p.rolle}" data-id="${p.id}" ${nurLesen() ? 'tabindex="-1"' : ''}>
             <span class="nr">${p.nummer ?? (p.rolle === 'staff' ? '★' : '–')}</span>
             <span class="info">
-              <strong>${esc(p.name)}</strong>
+              <strong>${esc(p.name)}${auchNr(andere.get(p.id))}</strong>
               <small>${esc(p.rolle === 'staff' ? (p.position || 'Staff') : (POSITION_LABEL[p.position] || 'keine Position'))}</small>
             </span>
           </button></li>`).join('')}
@@ -270,12 +273,15 @@ export async function mount(root) {
   let aktuell = null;
   fab.addEventListener('click', () => oeffnePerson(null));
 
+  let rolleAktuell = 'spieler';
+  const rolleHint = (r = rolleAktuell) => r === 'staff' ? '(optional)' : '';
   function setzeRolle(rolle) {
+    rolleAktuell = rolle;
     form.rolle.value = rolle;
     dlg.querySelectorAll('.rolle-seg button').forEach(b => b.classList.toggle('on', b.dataset.r === rolle));
     dlg.querySelector('.feld-pos-spieler').hidden = rolle !== 'spieler';
     dlg.querySelector('.feld-pos-staff').hidden = rolle !== 'staff';
-    dlg.querySelector('.nr-hint').textContent = rolle === 'staff' ? '(optional)' : '';
+    dlg.querySelector('.nr-hint').textContent = rolleHint(rolle);
   }
 
   function oeffnePerson(p) {
@@ -291,6 +297,8 @@ export async function mount(root) {
     if (p?.rolle === 'staff') form.pos_staff.value = p.position || '';
     else form.pos_spieler.value = POSITIONEN.includes(p?.position) ? p.position : 'Feld';
     dlg.querySelector('.btn-aktiv').textContent = p && !p.aktiv ? 'Reaktivieren' : 'Inaktiv setzen';
+    const auch = p ? andere.get(p.id) : null;
+    dlg.querySelector('.nr-hint').innerHTML = rolleHint() + (auch ? ` ${auchNr(auch)}` : '');
     dlg.showModal();
     if (!p) setTimeout(() => form.name.focus(), 50);
   }
