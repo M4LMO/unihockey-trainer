@@ -31,6 +31,8 @@ export function fehlerText(err) {
   if (/duplicate key|unique/i.test(m)) return 'Gibt es bereits.';
   if (/linien_spieler/i.test(m) && /foreign key/i.test(m))
     return 'Diese Person steht in Linien (Historie) und kann nicht gelöscht werden – bitte „Inaktiv setzen“.';
+  if (/match_(ereignisse|aufstellung)/i.test(m) && /foreign key/i.test(m))
+    return 'Diese Person steht in der Match-Statistik und kann nicht gelöscht werden – bitte „Inaktiv setzen“.';
   if (/foreign key/i.test(m)) return 'Wird noch verwendet und kann nicht gelöscht werden.';
   return m;
 }

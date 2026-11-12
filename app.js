@@ -6,6 +6,7 @@ import { APP_NAME } from './config.js';
 import { esc, toast, fehlerText } from './ui.js';
 import * as kader from './kader.js';
 import * as linien from './linien.js';
+import * as statistik from './statistik.js';
 
 // ---- Liste aller Tools ---------------------------------------
 // Neue Tools werden hier eingetragen (soon: true = noch in Arbeit)
@@ -14,7 +15,7 @@ const TOOLS = [
   { id: 'linien',    name: 'Linien',           icon: '🧩', desc: 'Aufstellen & bewerten',     modul: linien },
   { id: 'praesenz',  name: 'Präsenz',          icon: '✅', desc: 'Anwesenheit im Training',   soon: true },
   { id: 'taktik',    name: 'Taktikboard',      icon: '📋', desc: 'Spielzüge zeichnen',        soon: true },
-  { id: 'statistik', name: 'Match-Statistik',  icon: '📊', desc: 'Live im Spiel erfassen',    soon: true },
+  { id: 'statistik', name: 'Statistik',        icon: '📊', desc: 'Tore, Strafen, Skorer',     modul: statistik },
   { id: 'training',  name: 'Trainingsplanung', icon: '🗓️', desc: 'Übungen & Lektionen',       soon: true },
 ];
 

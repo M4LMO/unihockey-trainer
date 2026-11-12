@@ -1,0 +1,187 @@
+/* ============================================================
+   Tool: Statistik – eigenes Design (wird von statistik.js geladen)
+   ============================================================ */
+.st { padding: 14px; padding-bottom: 100px; }
+.st .seg { margin-top: 12px; }
+.st-tabs { display: flex; }
+.st-tabs button { flex: 1; padding: 7px 4px; font-size: .85rem; }
+.st a.karte { text-decoration: none; }
+.st .summary { margin: 12px 2px 8px; }
+.st-fuss { margin: 10px 2px 0; }
+
+/* Kopf */
+.st-kopf { display: flex; align-items: center; gap: 10px; }
+.st-kopf a.btn { text-decoration: none; }
+.st-kopf-info { flex: 1; min-width: 0; display: grid; }
+.st-kopf-info strong { font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Karten */
+.st-karte {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px 14px; margin-top: 12px; display: grid; gap: 10px;
+}
+.st-karte .gruppe { margin: 0; }
+.st-karte label { margin: 0; }
+
+/* Match-Liste */
+.st-liste { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.st-erg { font-size: 1rem !important; }
+.st-erg.s { background: var(--ok) !important; }
+.st-erg.n { background: var(--err) !important; }
+.st-erg.u { background: #64748b !important; }
+.st-erg.leer { background: var(--line) !important; color: var(--muted) !important; }
+.st-res { font-weight: 800; color: var(--team); margin-left: 4px; }
+.karte .info small.st-ok { color: #0f766e; }
+.karte .info small.st-fehlt { color: var(--muted); font-style: italic; }
+
+/* Grosses Resultat + Kennzahlen */
+.st-score { grid-template-columns: auto 1fr; align-items: center; }
+.st-score .st-links { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.st-links a.btn { text-decoration: none; }
+.st-gross-res {
+  font-size: 2rem; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  background: var(--bg); border-radius: 12px; padding: 4px 14px; text-align: center;
+}
+.st-gross-res.s { color: var(--ok); }
+.st-gross-res.n { color: var(--err); }
+.st-vs { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.st-vs > div { display: grid; min-width: 0; }
+.st-vs strong { font-size: 1.1rem; }
+
+.st-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.st-kpis > div { background: var(--bg); border-radius: 10px; padding: 8px 10px; display: grid; }
+.st-kpis b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.st-kpis small { color: var(--muted); font-size: .78rem; font-weight: 600; }
+.st-kpis em { font-style: normal; color: var(--muted); font-size: .75rem; }
+.st-kpis.klein { grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); gap: 6px; }
+.st-kpis.klein > div { padding: 6px 8px; }
+.st-kpis.klein b { font-size: 1.05rem; }
+
+/* Skorer-Tabelle */
+.st-tabelle { overflow-x: auto; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); }
+.st-tab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .92rem; }
+.st-tab th, .st-tab td { padding: 8px 6px; text-align: center; border-bottom: 1px solid var(--line); }
+.st-tab tr:last-child td { border-bottom: 0; }
+.st-tab th { font-size: .78rem; color: var(--muted); cursor: pointer; user-select: none; white-space: nowrap; }
+.st-tab th.on { color: var(--team); }
+.st-tab th.on::after { content: ' ▾'; }
+.st-tab .li { text-align: left; padding-left: 12px; }
+.st-tab td.li { min-width: 150px; }
+.st-tab td.fett { font-weight: 800; }
+.st-tab td small { display: block; font-size: .65rem; color: var(--muted); line-height: 1; }
+.st-tab td.plus { color: var(--ok); font-weight: 700; }
+.st-tab td.minus { color: var(--err); font-weight: 700; }
+.st-tab tr.st-inaktiv { opacity: .55; }
+.st-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-bar { display: block; height: 4px; background: var(--line); border-radius: 99px; margin-top: 4px; overflow: hidden; }
+.st-bar i { display: block; height: 100%; background: var(--team); border-radius: 99px; }
+
+/* Goalies */
+.st-goalies { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.st-g-kopf { display: flex; align-items: center; gap: 10px; }
+.st-g-nr {
+  flex: none; min-width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--nav); color: #fff; font-weight: 800; font-variant-numeric: tabular-nums; padding: 0 6px;
+}
+
+/* Tore pro Abschnitt */
+.st-abschnitte { display: grid; gap: 8px; }
+.st-abs { display: grid; grid-template-columns: 82px 1fr 1fr; gap: 6px; align-items: center; font-size: .85rem; }
+.st-abs-l { font-weight: 600; color: var(--muted); }
+.st-abs-bar { position: relative; height: 22px; background: var(--bg); border-radius: 6px; overflow: hidden; }
+.st-abs-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; }
+.st-abs-bar b { position: relative; padding-left: 8px; line-height: 22px; font-variant-numeric: tabular-nums; }
+.st-abs-bar.f i, .st-dot.f { background: #86efac; }
+.st-abs-bar.g i, .st-dot.g { background: #fca5a5; }
+.st-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-left: 6px; }
+
+/* Aufstellung */
+.st .gruppe .btn { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.st .gruppe em { font-style: normal; text-transform: none; letter-spacing: 0; margin-left: auto; }
+.st-auf { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-pers {
+  background: var(--card); border-radius: 99px; padding: 5px 11px; font-size: .88rem;
+  box-shadow: var(--shadow);
+}
+.st-pers.goalie { background: #e0f2fe; }
+.st-pers small { color: var(--muted); }
+
+/* Telegramm */
+.st-tele { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.st-abs-kopf {
+  font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  margin: 8px 2px 0; font-weight: 700;
+}
+.st-ev {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: inherit;
+  background: var(--card); border: 0; border-left: 4px solid var(--line); border-radius: 12px;
+  padding: 9px 12px; box-shadow: var(--shadow); cursor: pointer;
+}
+.st-ev:disabled { cursor: default; }
+.st-ev.tor { border-left-color: var(--ok); }
+.st-ev.gegentor { border-left-color: var(--err); }
+.st-ev.strafe { border-left-color: #eab308; }
+.st-ev.gegnerstrafe { border-left-color: #f97316; }
+.st-ev.goalie { border-left-color: #0ea5e9; }
+li.st-ev { cursor: default; }
+.st-zeit { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--muted); min-width: 46px; }
+.st-ev-icon { font-size: .9rem; }
+.st-ev-text { flex: 1; min-width: 0; line-height: 1.35; }
+.st-ev-text small { color: var(--muted); }
+.st-feld { display: block; font-size: .75rem; color: var(--muted); }
+.st-feld.gesetzt { color: #0f766e; font-weight: 600; }
+.st-sit {
+  flex: none; font-size: .72rem; font-weight: 800; border-radius: 6px; padding: 3px 6px;
+  background: var(--line); color: var(--text);
+}
+.st-sit.pp { background: #dcfce7; color: #166534; }
+.st-sit.bp { background: #fee2e2; color: #991b1b; }
+.st-sit[class*="6v5"], .st-sit[class*="5v6"] { background: #e0e7ff; color: #3730a3; }
+
+/* Import-Vorschau */
+.st-warn { color: #b45309; font-style: normal; }
+.st-zuord { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.st-zuord li {
+  background: var(--card); border-radius: 12px; box-shadow: var(--shadow); padding: 8px 10px;
+  display: grid; grid-template-columns: 1fr minmax(140px, 46%); gap: 8px; align-items: center;
+  border-left: 4px solid var(--ok);
+}
+.st-zuord li.offen { border-left-color: var(--err); }
+.st-zuord li.pruefen { border-left-color: #eab308; }
+.st-zu-su { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.st-zu-su > span:last-child { display: grid; min-width: 0; }
+.st-zu-su small { font-size: .75rem; }
+.st-zuord select { padding: 8px; font-size: 15px; }
+.st-aktionen { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.st-tele li.st-ev { box-shadow: none; background: var(--card); }
+
+/* Dialoge */
+.st-dlg .dlg-body { gap: 12px; }
+.st-dlg textarea {
+  font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  width: 100%; resize: vertical; background: #fff; color: var(--text); font-family: ui-monospace, monospace;
+}
+.st-dlg textarea[name=notiz] { font-family: inherit; font-size: 16px; }
+.st-dlg .seg { display: flex; justify-self: stretch; }
+.st-dlg .seg button { flex: 1; }
+.st-dlg .dlg-actions { flex-wrap: wrap; }
+.st-art button { display: grid; justify-items: center; gap: 1px; padding: 6px 2px; font-size: 1rem; }
+.st-art small { font-size: .62rem; font-weight: 600; }
+.st-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.st-feldwahl { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px 10px; margin: 0; display: grid; gap: 8px; }
+.st-feldwahl legend { font-size: .85rem; font-weight: 600; color: #334155; padding: 0 4px; }
+.st-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-chips .chip { padding: 6px 11px; font-size: .85rem; }
+.st-chips .chip.fix { box-shadow: 0 0 0 2px #fde68a; }
+.st-manuell { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 10px; }
+.st-manuell summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+.st-manuell[open] { display: grid; gap: 10px; }
+.st-auf-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 55dvh; overflow-y: auto; }
+.st-auf-liste li { display: flex; align-items: center; gap: 6px; padding: 4px 6px; background: var(--bg); border-radius: 10px; }
+.st-check { flex: 1; display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: .95rem; cursor: pointer; }
+.st-check input { width: 20px; height: 20px; padding: 0; flex: none; }
+.st-mini {
+  font: inherit; border: 1px solid var(--line); background: #fff; border-radius: 8px;
+  width: 36px; height: 34px; cursor: pointer; opacity: .45;
+}
+.st-mini.on { opacity: 1; background: #e0f2fe; border-color: #7dd3fc; }
