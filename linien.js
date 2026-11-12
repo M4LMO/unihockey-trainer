@@ -371,7 +371,7 @@ export async function mount(root) {
   // Alle Einsätze eines Kaders mit Versionen, Linien und Personen
   async function ladeBaum(listeId) {
     const d = await db(sb.from('einsaetze')
-      .select('id, datum, typ, titel, erstellt_am, varianten(id, nr, name, linien(id, art, nr, name, system, note, anzahl, tore, linien_spieler(kader_id, gast_name, posten, rolle)))')
+      .select('id, datum, typ, titel, erstellt_am, varianten(id, nr, name, linien(id, art, nr, name, system, note, anzahl, tore, linien_spieler(kader_id, gast_name, posten, rolle))), match_ereignisse(id, art, zeit, kader_id, assist_id, situation, minuten, variante_id, linie_id)')
       .eq('liste_id', listeId));
     return d.sort((a, b) => b.datum.localeCompare(a.datum) || b.erstellt_am.localeCompare(a.erstellt_am));
   }
@@ -474,7 +474,7 @@ export async function mount(root) {
     let E = null, V = [], aktivVar = null, modus = 'edit';
 
     async function lade() {
-      const e = await db(sb.from('einsaetze').select('*').eq('id', id));
+      const e = await db(sb.from('einsaetze').select('*, match_ereignisse(id)').eq('id', id));
       E = e[0];
       if (!E) { box.innerHTML = `<div class="hinweis"><p>Dieser Einsatz existiert nicht (mehr).</p><a class="btn primary" href="#/linien">Zur Übersicht</a></div>`; return false; }
       await ladeBasis(E.liste_id);
@@ -500,6 +500,7 @@ export async function mount(root) {
             <strong>${typIcon(E.typ)} ${esc(E.titel || typText(E.typ))}${E.resultat ? ` <span class="ln-res">${esc(E.resultat)}</span>` : ''}</strong>
             <small class="muted">${esc(info)}</small>
           </div>
+          ${E.typ === 'match' ? `<a class="btn ghost small ln-stat-link" href="#/statistik/m/${E.id}" title="Match-Statistik">📊</a>` : ''}
           ${ro ? '' : '<button class="btn ghost small ln-e-edit" title="Bearbeiten">✏️</button>'}
         </div>
         ${E.notiz ? `<p class="ln-e-notiz">${esc(E.notiz)}</p>` : ''}
@@ -789,7 +790,8 @@ export async function mount(root) {
     function zeichneBewerten(body, ro) {
       const v = variante();
       const formen = v.linien.filter(l => l.linien_spieler.length || l.note != null || l.notiz);
-      const zaehler = l => E.typ === 'match' && l.art !== 'linie';
+      const hatStat = E.typ === 'match' && E.match_ereignisse?.length > 0;   // Zahlen kommen aus dem Statistik-Tool
+      const zaehler = l => E.typ === 'match' && l.art !== 'linie' && !hatStat;
       const quote = l => {
         if (!l.anzahl) return '';
         const t = l.tore ?? 0;
@@ -798,6 +800,7 @@ export async function mount(root) {
       };
       body.innerHTML = formen.length ? `
         <p class="summary muted">Note 1–6 (6 = top). Nochmals auf die gewählte Note tippen = löschen. Alles wird sofort gespeichert.</p>
+        ${hatStat && formen.some(l => l.art !== 'linie') ? `<p class="ln-stat-hinweis">📊 Über-/Unterzahlen und Tore für PP/BP kommen aus der <a href="#/statistik/m/${E.id}">Match-Statistik</a>.</p>` : ''}
         ${formen.map(l => `
         <div class="ln-rate" data-id="${l.id}">
           <div class="ln-rate-kopf"><strong>${formLabel(l)}</strong>${l.name ? `<span class="ln-fname">${esc(l.name)}</span>` : ''}

@@ -415,7 +415,13 @@ export async function mount(root) {
 
     // Einsatz finden: Match am gleichen Datum
     const kandidaten = alle.filter(e => e.datum === D.datum);
-    const vorschlag = fuerMatch?.id || kandidaten.find(e => e.typ === 'match')?.id || 'neu';
+    // Vorschlag: gleicher Gegner → sonst Match ohne Statistik → sonst neu (nie still einen anderen Match überschreiben)
+    const gleich = (a, b) => { const x = L.normName(a), y = L.normName(b); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)); };
+    const matchK = kandidaten.filter(e => e.typ === 'match');
+    const vorschlag = fuerMatch?.id
+      || (D.gegner && matchK.find(e => gleich(e.titel, D.gegner))?.id)
+      || matchK.find(e => !e.stat_am && (!D.gegner || !e.titel))?.id
+      || 'neu';
     const vorlagen = alle.filter(e => e.datum <= D.datum).slice(0, 15).flatMap(x => [...x.varianten].sort((a, b) => b.nr - a.nr).map(v => ({
       id: v.id, text: `${datumText(x.datum)} · ${x.titel || (x.typ === 'match' ? 'Match' : 'Training')}${x.varianten.length > 1 ? ` · ${v.name || 'Version ' + v.nr}` : ''}`,
     })));

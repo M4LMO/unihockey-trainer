@@ -4,14 +4,74 @@
 //  - Verteidigerpaare, Sturmtrios, Sturmduos, Paar × Trio
 //  - Powerplay / Boxplay / 6 gegen 5 mit Quote
 //  Gezählt werden nur Kader-Personen (keine Gäste).
+//  Update S2: Daten aus dem Statistik-Tool (Tore pro Linie,
+//  Skorerpunkte, Plus/Minus, PP/BP-Quoten automatisch).
 // ============================================================
 import { esc } from './ui.js';
+import { zeitleiste, versionen } from './statistik-logik.js';
 
 export const MIN_EINSAETZE = 5;   // ab so vielen bewerteten Einsätzen in den Top-Listen
 const ZEIGE = 10;                 // so viele Einträge pro Liste, Rest aufklappbar
 
 // Einstellungen bleiben erhalten, solange die App offen ist
 const E = { modus: 'match2', spezial: false, sort: 'note', bereich: 'linien', person: '', offen: new Set() };
+
+// ---- Statistik-Tool → Linien -----------------------------------
+// Pro Match: welche Linie/Formation hat welches Tor erzielt bzw. kassiert?
+//  1. Linie bei einem Tor von Hand gesetzt (Plus/Minus) → diese Linie
+//  2. sonst eigenes Tor: Formation der passenden Art (Linie/PP/BP/6:5) in der gültigen
+//     Version, in der Torschütz:in (oder Assist) steht
+//  3. sonst PP/BP/6:5 mit nur einer Formation dieser Art → diese
+//  PP-/BP-Chancen gehen an die Formation, wenn die Version nur eine dieser Art hat.
+export function statistikProLinie(baum) {
+  const M = new Map();                 // linie_id → Werte
+  const team = { pp: { chancen: 0, tore: 0 }, bp: { chancen: 0, gegentore: 0 }, matches: 0 };
+  const wert = id => {
+    let x = M.get(id);
+    if (!x) M.set(id, x = { tf: 0, tg: 0, plus: 0, minus: 0, anzahl: 0, pkt: [] });
+    return x;
+  };
+  for (const e of baum) {
+    const ev = e.match_ereignisse || [];
+    if (e.typ !== 'match' || !ev.length) continue;
+    e.hatStat = true; team.matches++;
+    const R = zeitleiste(ev);
+    const ver = versionen(ev, e.varianten);
+    const sortiert = [...ev].sort((a, b) => a.zeit - b.zeit);
+    const ersteV = [...e.varianten].sort((a, b) => a.nr - b.nr)[0]?.id;
+    const vBei = t => { const x = sortiert.filter(y => y.zeit <= t).pop(); return x ? ver.get(x.id) : ersteV; };
+    const variante = id => e.varianten.find(v => v.id === id);
+    const formen = (vid, art) => (variante(vid)?.linien || []).filter(l => l.art === art);
+    const linie = id => { for (const v of e.varianten) { const l = v.linien.find(x => x.id === id); if (l) return l; } return null; };
+    const hat = (l, kid) => !!kid && l.linien_spieler.some(r => r.kader_id === kid);
+
+    for (const x of ev) {
+      if (x.art !== 'tor' && x.art !== 'gegentor') continue;
+      const s = R.sit.get(x.id);
+      const art = s === 'pp' ? 'pp' : s === 'bp' ? 'bp' : s === '6v5' ? '6v5' : 'linie';
+      let l = x.linie_id ? linie(x.linie_id) : null;
+      const getippt = !!l;
+      if (!l) {
+        const fs = formen(ver.get(x.id), art);
+        if (x.art === 'tor') l = fs.find(f => hat(f, x.kader_id)) || fs.find(f => hat(f, x.assist_id)) || null;
+        if (!l && art !== 'linie' && fs.length === 1) l = fs[0];
+      }
+      if (!l) continue;
+      const w = wert(l.id);
+      if (x.art === 'tor') { w.tf++; [x.kader_id, x.assist_id].forEach(k => k && w.pkt.push(k)); }
+      else w.tg++;
+      // Plus/Minus nur wenn die Linie getippt wurde (wie im Eishockey: PP-Tor kein +, Gegentor im BP kein −)
+      if (getippt) { if (x.art === 'tor' && s !== 'pp') w.plus++; if (x.art === 'gegentor' && s !== 'bp') w.minus++; }
+    }
+    for (const [art, starts] of [['pp', R.pp.starts], ['bp', R.bp.starts]]) for (const t of starts) {
+      const fs = formen(vBei(t), art);
+      if (fs.length === 1) wert(fs[0].id).anzahl++;
+    }
+    team.pp.chancen += R.pp.chancen; team.pp.tore += R.pp.tore;
+    team.bp.chancen += R.bp.chancen; team.bp.gegentore += R.bp.gegentore;
+  }
+  return { M, team };
+}
 
 // ---- Rechnen ---------------------------------------------------
 const kombis = (arr, k) => {
@@ -27,14 +87,24 @@ class Topf {
     let t = this.m.get(key);
     if (!t) this.m.set(key, t = {
       key, ids, einsaetze: new Set(), bewertet: new Set(), sw: 0, swn: 0, n: 0,
-      tr: [], ma: [], anzahl: 0, tore: 0, rollen: {}, ...extra,
+      tr: [], ma: [], anzahl: 0, tore: 0, rollen: {},
+      tf: 0, tg: 0, plus: 0, minus: 0, pkt: 0, ...extra,
     });
     t.einsaetze.add(o.e.id);
     if (o.note != null) {
       t.sw += o.w; t.swn += o.w * o.note; t.n++; t.bewertet.add(o.e.id);
       (o.e.typ === 'match' ? t.ma : t.tr).push(o.note);
     }
-    if (o.e.typ === 'match' && o.l.anzahl != null) { t.anzahl += o.l.anzahl; t.tore += o.l.tore ?? 0; }
+    if (o.e.typ === 'match') {
+      if (o.e.hatStat) {
+        // Aus der Statistik: Quote der Formation (BP: „tore“ = Gegentore)
+        if (o.l.art !== 'linie' && o.st) { t.anzahl += o.st.anzahl; t.tore += o.l.art === 'bp' ? o.st.tg : o.st.tf; }
+      } else if (o.l.anzahl != null) { t.anzahl += o.l.anzahl; t.tore += o.l.tore ?? 0; }   // Handzähler
+    }
+    if (o.st) {
+      t.tf += o.st.tf; t.tg += o.st.tg; t.plus += o.st.plus; t.minus += o.st.minus;
+      t.pkt += o.st.pkt.filter(k => ids.includes(k)).length;
+    }
     return t;
   }
   liste() { return [...this.m.values()]; }
@@ -43,6 +113,9 @@ const schnitt = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
 const avg = t => t.sw ? t.swn / t.sw : null;
 
 export function berechne(baum, { modus = 'match2', spezial = false } = {}) {
+  // 0) Statistik-Tool: Tore/Chancen pro Linie
+  const { M: stat, team } = statistikProLinie(baum);
+
   // 1) Beobachtungen = jede Linie/Formation in jeder Version
   const obs = [];
   for (const e of baum) {
@@ -52,7 +125,7 @@ export function berechne(baum, { modus = 'match2', spezial = false } = {}) {
     for (const v of e.varianten) for (const l of v.linien) {
       const rows = l.linien_spieler.filter(r => r.kader_id);
       if (!rows.length) continue;
-      obs.push({ e, v, l, w, rows, note: l.note == null ? null : Number(l.note) });
+      obs.push({ e, v, l, w, rows, st: stat.get(l.id), note: l.note == null ? null : Number(l.note) });
     }
   }
 
@@ -111,6 +184,7 @@ export function berechne(baum, { modus = 'match2', spezial = false } = {}) {
 
   return {
     anzahlEinsaetze: new Set(obs.map(o => o.e.id)).size,
+    team: modus === 'training' ? null : team,
     bewertet: obs.filter(o => o.note != null).length,
     linien, vPaare: vPaare.liste(), sTrios: sTrios.liste(), sDuos: sDuos.liste(), paarTrio: paarTrio.liste(),
     pp: spez.pp.liste(), bp: spez.bp.liste(), '6v5': spez['6v5'].liste(),
@@ -119,6 +193,8 @@ export function berechne(baum, { modus = 'match2', spezial = false } = {}) {
 
 export function sortiere(liste, sort) {
   const ok = t => t.bewertet.size >= MIN_EINSAETZE;
+  if (sort === 'tore') return [...liste].sort((a, b) =>
+    b.tf - a.tf || b.pkt - a.pkt || (b.plus - b.minus) - (a.plus - a.minus) || b.einsaetze.size - a.einsaetze.size);
   return [...liste].sort((a, b) => sort === 'haeufig'
     ? b.einsaetze.size - a.einsaetze.size || (avg(b) ?? 0) - (avg(a) ?? 0)
     : (ok(b) - ok(a)) || (ok(a) ? avg(b) - avg(a) : b.einsaetze.size - a.einsaetze.size) || (avg(b) ?? 0) - (avg(a) ?? 0));
@@ -135,12 +211,24 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
     return ord.map(id => `<span class="aw-p ${rollen ? 'r-' + (rollen[id] || 'S') : ''}">${name(id)}</span>`).join('');
   };
 
+  // Tore / Skorerpunkte / Plus-Minus aus dem Statistik-Tool
+  const statInfo = t => {
+    const pm = t.plus - t.minus;
+    const teile = [
+      t.tf ? `⚽ ${t.tf} ${t.tf === 1 ? 'Tor' : 'Tore'}` : '',
+      t.pkt ? `🎯 ${t.pkt} ${t.pkt === 1 ? 'Skorerpunkt' : 'Skorerpunkte'}` : '',
+      t.plus || t.minus ? `<span class="${pm > 0 ? 'aw-plus-wert' : pm < 0 ? 'aw-minus-wert' : ''}">± ${pm > 0 ? '+' : ''}${pm}</span> <small>(+${t.plus}/−${t.minus})</small>` : '',
+    ].filter(Boolean);
+    return teile.length ? `<div class="aw-stat">${teile.join(' · ')}</div>` : '';
+  };
+
   function zeile(t, titel, { extra = '' } = {}) {
     const a = avg(t), ok = t.bewertet.size >= MIN_EINSAETZE;
     const tm = [t.tr.length ? `🏋️ ${schnitt(t.tr).toFixed(1)}` : '', t.ma.length ? `🏆 ${schnitt(t.ma).toFixed(1)}` : ''].filter(Boolean).join(' · ');
     return `<li class="aw-zeile ${ok ? '' : 'wenig'}">
       <div class="aw-haupt">
         <div class="aw-namen">${titel}</div>
+        ${statInfo(t)}
         <div class="aw-info">${t.einsaetze.size}× zusammen${t.n ? ` · ${t.bewertet.size} bewertet` : ' · noch keine Note'}${tm ? ` · ${tm}` : ''}${!ok && t.n ? ` · <i>zu wenig Noten für Top-Liste (ab ${MIN_EINSAETZE})</i>` : ''}</div>
         ${extra}
       </div>
@@ -166,7 +254,7 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
 
   const quote = (t, art) => !t.anzahl ? '' : `<div class="aw-quote">${art === 'bp'
     ? `${t.anzahl - Math.min(t.tore, t.anzahl)} von ${t.anzahl} Unterzahlen ohne Gegentor = <b>${Math.round(100 * (t.anzahl - Math.min(t.tore, t.anzahl)) / t.anzahl)} %</b>`
-    : `${t.tore} Tore aus ${t.anzahl} ${art === 'pp' ? 'Überzahlen' : 'Situationen'} = <b>${Math.round(100 * t.tore / t.anzahl)} %</b>`}</div>`;
+    : `${t.tore} ${t.tore === 1 ? 'Tor' : 'Tore'} aus ${t.anzahl} ${art === 'pp' ? (t.anzahl === 1 ? 'Überzahl' : 'Überzahlen') : (t.anzahl === 1 ? 'Situation' : 'Situationen')} = <b>${Math.round(100 * t.tore / t.anzahl)} %</b>`}</div>`;
 
   function zeichne() {
     const R = berechne(baum, E);
@@ -174,9 +262,9 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
 
     let inhalt = '';
     if (E.bereich === 'linien') {
-      inhalt = block('linien', E.sort === 'note' ? '⭐ Top-Linien' : '🔁 Stamm-Linien',
+      inhalt = block('linien', E.sort === 'note' ? '⭐ Top-Linien' : E.sort === 'tore' ? '⚽ Torgefährlichste Linien' : '🔁 Stamm-Linien',
         `Ähnliche Linien (mind. 4 von 5 gleich) werden zusammengefasst – Abweichungen stehen als Hinweis dabei.
-         ${E.sort === 'note' ? `In der Rangliste ab ${MIN_EINSAETZE} bewerteten Einsätzen.` : 'Sortiert nach Häufigkeit.'}`,
+         ${E.sort === 'note' ? `In der Rangliste ab ${MIN_EINSAETZE} bewerteten Einsätzen.` : E.sort === 'tore' ? 'Sortiert nach Toren aus der Match-Statistik.' : 'Sortiert nach Häufigkeit.'}`,
         R.linien, t => zeile(t, namen(t.ids, t.rollen), {
           extra: t.varianten.length ? `<div class="aw-var">↔ Varianten: ${t.varianten.map(v => {
             const p = v.plus.map(name).join(', '), m = v.minus.map(name).join(', ');
@@ -190,7 +278,14 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
         + block('pt', '🧩 Verteidigerpaar + Sturmtrio', '', R.paarTrio, t => zeile(t,
           `<span class="aw-gruppe">${namen(t.paar)}</span><span class="aw-plus">+</span><span class="aw-gruppe">${namen(t.trio)}</span>`));
     } else {
-      inhalt = block('pp', '⚡ Powerplay', '', R.pp, t => zeile(t, namen(t.ids, t.rollen), { extra: quote(t, 'pp') }))
+      const T = R.team;
+      const teamZeile = T && T.matches ? `<div class="aw-team">
+        <b>Team aus der Match-Statistik</b> (${T.matches} ${T.matches === 1 ? 'Match' : 'Matches'}):
+        Powerplay ${T.pp.chancen ? `${T.pp.tore}/${T.pp.chancen} = <b>${Math.round(100 * T.pp.tore / T.pp.chancen)} %</b>` : '–'} ·
+        Boxplay ${T.bp.chancen ? `${T.bp.chancen - Math.min(T.bp.gegentore, T.bp.chancen)}/${T.bp.chancen} ohne Gegentor = <b>${Math.round(100 * (T.bp.chancen - Math.min(T.bp.gegentore, T.bp.chancen)) / T.bp.chancen)} %</b>` : '–'}
+        <p class="muted klein">Hat eine Version mehrere PP- bzw. BP-Formationen, zählen die Über-/Unterzahlen nur hier fürs Team – Tore gehen trotzdem an die Formation der Torschütz:in.</p>
+      </div>` : '';
+      inhalt = teamZeile + block('pp', '⚡ Powerplay', '', R.pp, t => zeile(t, namen(t.ids, t.rollen), { extra: quote(t, 'pp') }))
         + block('bp', '🛡️ Boxplay', '', R.bp, t => zeile(t, namen(t.ids, t.rollen), { extra: quote(t, 'bp') }))
         + (R['6v5'].length ? block('65', '🥅 6 gegen 5', '', R['6v5'], t => zeile(t, namen(t.ids, t.rollen), { extra: quote(t, '6v5') })) : '');
     }
@@ -198,7 +293,7 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
     ziel.innerHTML = `
       <div class="aw-steuer">
         ${seg('aw-bereich', 'bereich', [['linien', 'Linien'], ['paare', 'Paare & Trios'], ['spezial', 'PP / BP']])}
-        ${seg('aw-sort', 'sort', [['note', '⭐ Ø Note'], ['haeufig', '🔁 Häufigkeit']])}
+        ${seg('aw-sort', 'sort', [['note', '⭐ Ø Note'], ['tore', '⚽ Tore'], ['haeufig', '🔁 Häufigkeit']])}
         <div class="aw-filter">
           <label>Gewichtung<select class="aw-modus">
             ${[['match2', 'Match zählt doppelt'], ['gleich', 'Alles gleich'], ['match', 'Nur Matches'], ['training', 'Nur Trainings']]

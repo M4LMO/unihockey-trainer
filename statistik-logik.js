@@ -67,14 +67,15 @@ export function strafMinuten(min) {
 
 // ---- Zeitleiste: Situation bei jedem Tor, PP/BP-Bilanz --------
 // ereignisse: [{id, art, zeit, kader_id, situation, minuten}]
-// Rückgabe: { sit: Map(id → situation), pp: {chancen, tore, gegentore}, bp: {chancen, gegentore, tore}, leer: {tore, gegentore} }
+// Rückgabe: { sit: Map(id → situation), pp: {chancen, tore, gegentore, starts}, bp: {chancen, gegentore, tore, starts}, leer: {tore, gegentore} }
+// starts = Spielzeiten, an denen ein Powerplay/Boxplay begonnen hat
 export function zeitleiste(ereignisse) {
   const liste = [...ereignisse].sort((a, b) => a.zeit - b.zeit || rang(a) - rang(b));
   const team = () => ({ aktiv: [] });   // aktiv: [{ende, frueh, rest:[[d,frueh]…]}]
   const eigen = team(), gegner = team();
   let goalieRaus = false;
   const sit = new Map();
-  const R = { pp: { chancen: 0, tore: 0, gegentore: 0 }, bp: { chancen: 0, gegentore: 0, tore: 0 }, leer: { tore: 0, gegentore: 0 } };
+  const R = { pp: { chancen: 0, tore: 0, gegentore: 0, starts: [] }, bp: { chancen: 0, gegentore: 0, tore: 0, starts: [] }, leer: { tore: 0, gegentore: 0 } };
   let zustand = 'eq';
 
   const ablaufen = (t, s) => {
@@ -94,11 +95,12 @@ export function zeitleiste(ereignisse) {
     const e = anzahl(eigen), g = anzahl(gegner);
     return e > g ? 'pp' : e < g ? 'bp' : 'eq';
   };
-  const pruefeWechsel = () => {
+  // t = Zeitpunkt des Wechsels (für die Zuordnung zur Linien-Version)
+  const pruefeWechsel = (t = aktuelleZeit) => {
     const neu = berechne();
     if (neu !== zustand) {
-      if (neu === 'pp') R.pp.chancen++;
-      if (neu === 'bp') R.bp.chancen++;
+      if (neu === 'pp') { R.pp.chancen++; R.pp.starts.push(t); }
+      if (neu === 'bp') { R.bp.chancen++; R.bp.starts.push(t); }
       zustand = neu;
     }
   };
@@ -109,9 +111,10 @@ export function zeitleiste(ereignisse) {
       if (!enden.length) break;
       const x = Math.min(...enden);
       ablaufen(x, eigen); ablaufen(x, gegner);
-      pruefeWechsel();
+      pruefeWechsel(x);
     }
   };
+  let aktuelleZeit = 0;
   const beendeFrueheste = s => {
     const p = s.aktiv.filter(x => x.frueh).sort((a, b) => a.ende - b.ende)[0];
     if (!p) return;
@@ -119,7 +122,6 @@ export function zeitleiste(ereignisse) {
     if (naechst) { p.ende = aktuelleZeit + naechst[0]; p.frueh = naechst[1]; }   // 2+2: zweite Strafe beginnt jetzt
     else s.aktiv = s.aktiv.filter(x => x !== p);
   };
-  let aktuelleZeit = 0;
 
   liste.forEach((ev, i) => {
     aktuelleZeit = ev.zeit;
