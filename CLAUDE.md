@@ -17,6 +17,7 @@ Tool-Details: `docs/linien-spec.md`, `docs/statistik-spec.md`. SQL-Historie: `sq
 - Marc ist kein Profi-Entwickler: Antworten auf Deutsch, locker, kurz. Bei allem, was er selbst tun muss (Supabase, GitHub), **Schritt für Schritt** mit direkten Links anleiten und „Melde dich, wenn …“.
 - Er arbeitet iterativ: lieber kleine, testbare Schritte; bei grösseren Umbauten offene Fragen vorher klären.
 - **Jeder Merge auf `main` ist sofort live für den ganzen Staff.** Darum: Änderungen auf einem eigenen Branch + **Pull Request**; Marc testet und merged. Nie direkt auf `main` pushen, ausser Marc verlangt es ausdrücklich.
+- **Git/GitHub immer genau erklären:** Marc versteht Push, Pull, Merge, Branch usw. nicht von selbst. Bei jedem solchen Schritt in einfachen Worten sagen, **was passiert** (z. B. „Push = hochladen, noch nicht live“), **wer es macht** (Claude oder Marc) und **ob danach etwas live ist**. Für alles, was Marc tun muss: direkter Link zum Pull Request + genaue Klick-Anleitung (z. B. „grüner Knopf **Merge pull request** → **Confirm merge**“).
 - Datenbank-Änderungen kann Claude nicht selbst ausführen: neue Datei `sql/NN_name.sql` anlegen und Marc den SQL-Text im Chat geben (Supabase SQL Editor: https://supabase.com/dashboard/project/psfygduxfqtxpyfwebew/sql/new). **SQL muss laufen, bevor der Pull Request gemerged wird.**
 - Am Ende jeder Lieferung diese Checkliste zeigen (angepasst):
 
