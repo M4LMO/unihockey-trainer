@@ -9,7 +9,7 @@ import * as linien from './linien.js';
 import * as statistik from './statistik.js';
 
 // ---- Liste aller Tools ---------------------------------------
-// Neue Tools werden hier eingetragen (soon: true = noch in Arbeit)
+// Neue Tools werden hier eingetragen (soon: true = noch in Arbeit, wird auf der Startseite ausgeblendet)
 const TOOLS = [
   { id: 'kader',     name: 'Kader',            icon: '👥', desc: 'Spieler:innen & Staff pro Saison', modul: kader },
   { id: 'linien',    name: 'Linien',           icon: '🧩', desc: 'Aufstellen & bewerten',     modul: linien },
@@ -106,13 +106,7 @@ function startseite() {
     <div class="home">
       <h2>Tools</h2>
       <div class="tiles">
-        ${TOOLS.map(t => t.soon ? `
-          <div class="tile soon">
-            <span class="tile-icon">${t.icon}</span>
-            <strong>${esc(t.name)}</strong>
-            <small>${esc(t.desc)}</small>
-            <span class="badge">bald</span>
-          </div>` : `
+        ${TOOLS.filter(t => t.modul && !t.soon).map(t => `
           <a class="tile" href="#/${t.id}">
             <span class="tile-icon">${t.icon}</span>
             <strong>${esc(t.name)}</strong>
