@@ -53,8 +53,11 @@ const noteText = n => n == null ? '–' : (Number(n) % 1 ? Number(n).toFixed(1) 
 const schnitt = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
 const formLabel = l => `${ARTEN[l.art].kurz} ${l.nr}`;
 const istFeld = k => k.rolle === 'spieler' && k.position !== 'Goalie';
-const typIcon = t => t === 'match' ? '🏆' : '🏋️';
-const typText = t => t === 'match' ? 'Match' : 'Training';
+// Testspiel = Match mit Wettbewerb 'test' (gleich wie im Statistik-Tool)
+const istTest = e => e?.typ === 'match' && e?.wettbewerb === 'test';
+const artVon = e => istTest(e) ? 'test' : e.typ;
+const typIcon = e => ({ training: '🏋️', match: '🏆', test: '🤝' })[artVon(e)];
+const typText = e => ({ training: 'Training', match: 'Match', test: 'Testspiel' })[artVon(e)];
 const nachArt = (a, b) => ART_REIHE.indexOf(a.art) - ART_REIHE.indexOf(b.art) || a.nr - b.nr;
 const plural = (n, ein, mehr) => `${n} ${n === 1 ? ein : mehr}`;
 
@@ -250,16 +253,16 @@ export async function mount(root) {
       fab.onclick = () => einsatzDialog(null, einsaetze);
 
       const zeigen = () => {
-        const liste = einsaetze.filter(e => filter === 'alle' || e.typ === filter);
+        const liste = einsaetze.filter(e => filter === 'alle' || artVon(e) === filter);
         ziel.querySelector('.ln-liste').innerHTML = liste.length ? liste.map(e => {
           const noten = e.varianten.flatMap(v => v.linien).filter(l => l.art === 'linie' && l.note != null).map(l => Number(l.note));
           const s = schnitt(noten);
           const info = [datumText(e.datum), e.varianten.length > 1 ? `${e.varianten.length} Versionen` : null,
-            e.typ === 'match' && e.wettbewerb ? WETTBEWERB[e.wettbewerb] : null,
+            e.typ === 'match' && e.wettbewerb && !istTest(e) ? WETTBEWERB[e.wettbewerb] : null,
             e.typ === 'match' && e.ort ? ORT[e.ort] : null].filter(Boolean).join(' · ');
           return `<a class="karte ln-einsatz" href="#/linien/e/${e.id}">
-            <span class="nr ln-typ ${e.typ}">${typIcon(e.typ)}</span>
-            <span class="info"><strong>${esc(e.titel || typText(e.typ))}${e.resultat ? ` <span class="ln-res">${esc(e.resultat)}</span>` : ''}</strong>
+            <span class="nr ln-typ ${artVon(e)}">${typIcon(e)}</span>
+            <span class="info"><strong>${esc(e.titel || typText(e))}${e.resultat ? ` <span class="ln-res">${esc(e.resultat)}</span>` : ''}</strong>
               <small>${esc(info)}</small></span>
             <span class="ln-schnitt ${s == null ? 'leer' : ''}" title="Ø Note Linien">${s == null ? '–' : s.toFixed(1)}</span>
           </a>`;
@@ -269,8 +272,9 @@ export async function mount(root) {
       ziel.innerHTML = `
         <div class="seg ln-filter">
           <button data-f="alle" class="${filter === 'alle' ? 'on' : ''}">Alle</button>
-          <button data-f="training" class="${filter === 'training' ? 'on' : ''}">🏋️ Trainings</button>
-          <button data-f="match" class="${filter === 'match' ? 'on' : ''}">🏆 Matches</button>
+          <button data-f="training" class="${filter === 'training' ? 'on' : ''}">🏋️ Training</button>
+          <button data-f="match" class="${filter === 'match' ? 'on' : ''}">🏆 Match</button>
+          <button data-f="test" class="${filter === 'test' ? 'on' : ''}">🤝 Test</button>
         </div>
         <div class="ln-liste"></div>`;
       ziel.querySelector('.ln-filter').onclick = e => {
@@ -373,7 +377,7 @@ export async function mount(root) {
   // Alle Einsätze eines Kaders mit Versionen, Linien und Personen
   async function ladeBaum(listeId) {
     const d = await db(sb.from('einsaetze')
-      .select('id, datum, typ, titel, erstellt_am, varianten(id, nr, name, linien(id, art, nr, name, system, note, anzahl, tore, linien_spieler(kader_id, gast_name, posten, rolle))), match_ereignisse(id, art, zeit, kader_id, assist_id, situation, minuten, variante_id, linie_id), match_aufstellung(kader_id, nummer)')
+      .select('id, datum, typ, titel, wettbewerb, erstellt_am, varianten(id, nr, name, linien(id, art, nr, name, system, note, anzahl, tore, linien_spieler(kader_id, gast_name, posten, rolle))), match_ereignisse(id, art, zeit, kader_id, assist_id, situation, minuten, variante_id, linie_id), match_aufstellung(kader_id, nummer)')
       .eq('liste_id', listeId));
     return d.sort((a, b) => b.datum.localeCompare(a.datum) || b.erstellt_am.localeCompare(a.erstellt_am));
   }
@@ -382,19 +386,19 @@ export async function mount(root) {
   function einsatzDialog(e, alle = []) {
     const vorlagen = alle.slice(0, 15).flatMap(x => [...x.varianten].sort((a, b) => a.nr - b.nr).map(v => ({
       id: v.id,
-      text: `${datumText(x.datum)} · ${x.titel || typText(x.typ)}${x.varianten.length > 1 ? ` · ${v.name || 'Version ' + v.nr}` : ''}`,
+      text: `${datumText(x.datum)} · ${x.titel || typText(x)}${x.varianten.length > 1 ? ` · ${v.name || 'Version ' + v.nr}` : ''}`,
     })));
     const letzte = alle[0] ? [...alle[0].varianten].sort((a, b) => b.nr - a.nr)[0]?.id : '';
-    const typ0 = e?.typ || 'training';
+    const typ0 = e ? artVon(e) : 'training';
     oeffneDialog(`
       <h2>${e ? 'Einsatz bearbeiten' : 'Neuer Einsatz'}</h2>
-      <div class="seg ln-etyp"><button data-t="training" class="${typ0 === 'training' ? 'on' : ''}">🏋️ Training</button><button data-t="match" class="${typ0 === 'match' ? 'on' : ''}">🏆 Match</button></div>
+      <div class="seg ln-etyp"><button data-t="training" class="${typ0 === 'training' ? 'on' : ''}">🏋️ Training</button><button data-t="match" class="${typ0 === 'match' ? 'on' : ''}">🏆 Match</button><button data-t="test" class="${typ0 === 'test' ? 'on' : ''}">🤝 Testspiel</button></div>
       <label>Datum<input type="date" name="datum" value="${e?.datum || heute()}" required></label>
       <label><span class="ln-titel-lbl">Titel</span><input name="titel" value="${esc(e?.titel || '')}" autocomplete="off"></label>
       <div class="ln-nur-match">
         <label>Resultat<input name="resultat" value="${esc(e?.resultat || '')}" placeholder="z.B. 6:4" autocomplete="off"></label>
-        <label>Wettbewerb<select name="wettbewerb"><option value="">–</option>
-          ${Object.entries(WETTBEWERB).map(([k, v]) => `<option value="${k}" ${e?.wettbewerb === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+        <label class="ln-wettb">Wettbewerb<select name="wettbewerb"><option value="">–</option>
+          ${Object.entries(WETTBEWERB).filter(([k]) => k !== 'test').map(([k, v]) => `<option value="${k}" ${e?.wettbewerb === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         <label>Heim / Auswärts<select name="ort"><option value="">–</option>
           ${Object.entries(ORT).map(([k, v]) => `<option value="${k}" ${e?.ort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       </div>
@@ -414,9 +418,10 @@ export async function mount(root) {
       const setTyp = t => {
         typ = t;
         d.querySelectorAll('.ln-etyp button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-        d.querySelector('.ln-nur-match').hidden = t !== 'match';
-        d.querySelector('.ln-titel-lbl').textContent = t === 'match' ? 'Gegner' : 'Titel / Thema (optional)';
-        d.querySelector('[name=titel]').placeholder = t === 'match' ? 'z.B. UHC Muster' : 'z.B. Abschlusstraining';
+        d.querySelector('.ln-nur-match').hidden = t === 'training';
+        d.querySelector('.ln-wettb').hidden = t !== 'match';
+        d.querySelector('.ln-titel-lbl').textContent = t === 'training' ? 'Titel / Thema (optional)' : 'Gegner';
+        d.querySelector('[name=titel]').placeholder = t === 'training' ? 'z.B. Abschlusstraining' : 'z.B. UHC Muster';
       };
       setTyp(typ);
       d.querySelector('.ln-etyp').onclick = ev => { const b = ev.target.closest('button'); if (b) setTyp(b.dataset.t); };
@@ -428,10 +433,11 @@ export async function mount(root) {
       });
       d.querySelector('.btn-ok').onclick = async () => {
         const f = n => d.querySelector(`[name=${n}]`).value.trim() || null;
-        const daten = { typ, datum: f('datum') || heute(), titel: f('titel'), notiz: f('notiz'),
-          resultat: typ === 'match' ? f('resultat') : null,
-          wettbewerb: typ === 'match' ? f('wettbewerb') : null,
-          ort: typ === 'match' ? f('ort') : null };
+        const spiel = typ !== 'training';   // Match oder Testspiel
+        const daten = { typ: spiel ? 'match' : 'training', datum: f('datum') || heute(), titel: f('titel'), notiz: f('notiz'),
+          resultat: spiel ? f('resultat') : null,
+          wettbewerb: typ === 'test' ? 'test' : typ === 'match' ? f('wettbewerb') : null,
+          ort: spiel ? f('ort') : null };
         const btn = d.querySelector('.btn-ok'); btn.disabled = true;
         try {
           if (e) {
@@ -493,13 +499,13 @@ export async function mount(root) {
       document.body.classList.toggle('ln-fokus', modus === 'shot');
       if (modus === 'shot') return zeichneScreenshot();
       const ro = nurLesen();
-      const info = [datumText(E.datum), typText(E.typ), E.typ === 'match' && E.wettbewerb ? WETTBEWERB[E.wettbewerb] : null,
+      const info = [datumText(E.datum), typText(E), E.typ === 'match' && E.wettbewerb && !istTest(E) ? WETTBEWERB[E.wettbewerb] : null,
         E.typ === 'match' && E.ort ? ORT[E.ort] : null, teamLabel(team())].filter(Boolean).join(' · ');
       box.innerHTML = `
         <div class="ln-kopf">
           <a class="btn ghost small" href="#/linien">‹</a>
           <div class="ln-kopf-info">
-            <strong>${typIcon(E.typ)} ${esc(E.titel || typText(E.typ))}${E.resultat ? ` <span class="ln-res">${esc(E.resultat)}</span>` : ''}</strong>
+            <strong>${typIcon(E)} ${esc(E.titel || typText(E))}${E.resultat ? ` <span class="ln-res">${esc(E.resultat)}</span>` : ''}</strong>
             <small class="muted">${esc(info)}</small>
           </div>
           ${E.typ === 'match' ? `<a class="btn ghost small ln-stat-link" href="#/statistik/m/${E.id}" title="Match-Statistik">📊</a>` : ''}
@@ -777,7 +783,7 @@ export async function mount(root) {
         <div class="ln-shot">
           <button class="btn ghost small ln-shot-zu">✕ Schliessen</button>
           <div class="ln-shot-kopf">
-            <strong>${typIcon(E.typ)} ${esc(E.titel || typText(E.typ))}</strong>
+            <strong>${typIcon(E)} ${esc(E.titel || typText(E))}</strong>
             <span>${esc([datumText(E.datum), teamLabel(team()), V.length > 1 ? (v.name || `Version ${v.nr}`) : null].filter(Boolean).join(' · '))}</span>
           </div>
           ${ART_REIHE.map(art => {
@@ -898,7 +904,7 @@ export async function mount(root) {
         <h3 class="gruppe">Verlauf <span>${eintraege.length}</span></h3>
         ${eintraege.length ? `<ul class="ln-verlauf">${eintraege.map(x => `
           <li><a href="#/linien/e/${x.e.id}">
-            <div class="ln-v-kopf"><span>${typIcon(x.e.typ)} <b>${esc(datumText(x.e.datum))}</b> ${esc(x.e.titel || '')}${(() => { const n = x.e.match_aufstellung?.find(a => a.kader_id === p.id)?.nummer; return n != null && n !== p.nummer ? ` <span class="nr-auch">#${n}</span>` : ''; })()}</span>
+            <div class="ln-v-kopf"><span>${typIcon(x.e)} <b>${esc(datumText(x.e.datum))}</b> ${esc(x.e.titel || '')}${(() => { const n = x.e.match_aufstellung?.find(a => a.kader_id === p.id)?.nummer; return n != null && n !== p.nummer ? ` <span class="nr-auch">#${n}</span>` : ''; })()}</span>
               <span class="ln-note-klein ${x.l.note == null ? 'leer' : ''}">${noteText(x.l.note)}</span></div>
             <small>${esc(formLabel(x.l))}${x.l.name ? ` „${esc(x.l.name)}“` : ''} · ${x.ich.posten === 'Z' ? `Zusatz (${ROLLEN[x.ich.rolle]})` : esc(x.ich.posten)}${x.mehrVersionen ? ` · ${esc(x.v.name || 'Version ' + x.v.nr)}` : ''}</small>
             <small class="muted">mit ${x.andere.length ? x.andere.map(r => esc(nameVon(r))).join(', ') : 'niemandem'}</small>

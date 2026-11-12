@@ -15,6 +15,7 @@ a.karte { text-decoration: none; }
 /* Einsatz-Liste */
 .ln-typ.training { background: #0f766e; }
 .ln-typ.match { background: var(--team); }
+.ln-typ.test { background: #7c3aed; }
 .ln-res { font-weight: 800; color: var(--team); margin-left: 4px; }
 .ln-schnitt {
   margin-left: auto; flex: none; min-width: 42px; text-align: center; font-weight: 800;
