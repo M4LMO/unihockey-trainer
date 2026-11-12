@@ -53,6 +53,67 @@ $('#login-form').addEventListener('submit', async e => {
   }
 });
 
+// ---- Passwort ändern (für alle Logins) ------------------------
+const pwBtn = document.createElement('button');
+pwBtn.className = 'btn ghost small';
+pwBtn.textContent = '🔑';
+pwBtn.title = 'Passwort ändern';
+pwBtn.setAttribute('aria-label', 'Passwort ändern');
+$('#logout').before(pwBtn);
+
+const pwDlg = document.createElement('dialog');
+pwDlg.className = 'dlg dlg-person';
+pwDlg.innerHTML = `
+  <form novalidate>
+    <div>
+      <h2>🔑 Passwort ändern</h2>
+      <p class="muted klein pw-wer"></p>
+    </div>
+    <label>Neues Passwort
+      <input name="pw1" type="password" autocomplete="new-password" minlength="8">
+    </label>
+    <label>Neues Passwort wiederholen
+      <input name="pw2" type="password" autocomplete="new-password" minlength="8">
+    </label>
+    <p class="muted klein">Mindestens 8 Zeichen.</p>
+    <p class="form-error error" hidden></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn ghost pw-abbr">Abbrechen</button>
+      <button type="submit" class="btn primary">Speichern</button>
+    </div>
+  </form>`;
+document.body.appendChild(pwDlg);
+const pwForm = pwDlg.querySelector('form');
+const pwFehler = msg => { const el = pwDlg.querySelector('.form-error'); el.textContent = msg; el.hidden = !msg; };
+
+pwBtn.addEventListener('click', () => {
+  pwForm.reset();
+  pwFehler('');
+  pwDlg.querySelector('.pw-wer').textContent = ich?.email ? `Login: ${ich.email}` : '';
+  pwDlg.showModal();
+  setTimeout(() => pwForm.pw1.focus(), 50);
+});
+pwDlg.querySelector('.pw-abbr').addEventListener('click', () => pwDlg.close());
+
+pwForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const p1 = pwForm.pw1.value, p2 = pwForm.pw2.value;
+  if (p1.length < 8) return pwFehler('Mindestens 8 Zeichen.');
+  if (p1 !== p2) return pwFehler('Die beiden Passwörter sind nicht gleich.');
+  const btn = pwForm.querySelector('[type=submit]');
+  btn.disabled = true;
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  btn.disabled = false;
+  if (error) {
+    const m = error.message || '';
+    return pwFehler(/different from the old|same/i.test(m) ? 'Das neue Passwort ist gleich wie das alte.'
+      : /weak|at least/i.test(m) ? 'Passwort zu schwach – bitte länger oder mit Zahlen/Zeichen.'
+      : fehlerText(error));
+  }
+  pwDlg.close();
+  toast('Passwort geändert', 'ok');
+});
+
 $('#logout').addEventListener('click', async () => {
   await sb.auth.signOut();
   toast('Abgemeldet');
