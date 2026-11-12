@@ -4,6 +4,7 @@
 //  - Verteidigerpaare, Sturmtrios, Sturmduos, Paar × Trio
 //  - Powerplay / Boxplay / 6 gegen 5 mit Quote
 //  Gezählt werden nur Kader-Personen (keine Gäste).
+//  - Top 3: beste Linien / Paare+Trios ohne doppelte Personen
 //  Update S2: Daten aus dem Statistik-Tool (Tore pro Linie,
 //  Skorerpunkte, Plus/Minus, PP/BP-Quoten automatisch).
 // ============================================================
@@ -11,7 +12,8 @@ import { esc } from './ui.js';
 import { zeitleiste, versionen } from './statistik-logik.js';
 
 export const MIN_EINSAETZE = 5;   // ab so vielen bewerteten Einsätzen in den Top-Listen
-const ZEIGE = 10;                 // so viele Einträge pro Liste, Rest aufklappbar
+const ZEIGE = 10;                 // so viele Einträge pro Liste (Linien), Rest aufklappbar
+const ZEIGE_PAARE = 5;            // Paare & Trios
 
 // Einstellungen bleiben erhalten, solange die App offen ist
 const E = { modus: 'match2', spezial: false, sort: 'note', bereich: 'linien', person: '', offen: new Set() };
@@ -200,8 +202,77 @@ export function sortiere(liste, sort) {
     : (ok(b) - ok(a)) || (ok(a) ? avg(b) - avg(a) : b.einsaetze.size - a.einsaetze.size) || (avg(b) ?? 0) - (avg(a) ?? 0));
 }
 
+// ---- Top 3: beste Kombination ohne doppelte Personen ----------
+// Punkte: bewährte Einträge (ab MIN_EINSAETZE Noten) zählen immer vor
+// unsicheren; innerhalb davon zählt die Ø Note. Nur aktive Personen.
+const punkte = t => avg(t) == null ? -Infinity : avg(t) + (t.bewertet.size >= MIN_EINSAETZE ? 100 : 0);
+const frei = (ids, belegt) => ids.every(x => !belegt.has(x));
+
+// beste k sich nicht überschneidende Einträge (max. Punktesumme)
+function besteDisjunkte(kand, k, N = 25) {
+  const top = kand.filter(t => avg(t) != null).sort((a, b) => punkte(b) - punkte(a)).slice(0, N);
+  let best = [], bestP = -Infinity;
+  const such = (start, wahl, belegt, summe) => {
+    if (wahl.length > best.length || (wahl.length === best.length && summe > bestP)) { best = [...wahl]; bestP = summe; }
+    if (wahl.length === k) return;
+    for (let i = start; i < top.length; i++) {
+      const t = top[i];
+      if (!frei(t.ids, belegt)) continue;
+      t.ids.forEach(x => belegt.add(x));
+      such(i + 1, [...wahl, t], belegt, summe + punkte(t));
+      t.ids.forEach(x => belegt.delete(x));
+    }
+  };
+  such(0, [], new Set(), 0);
+  return best.sort((a, b) => punkte(b) - punkte(a));
+}
+
+export function topDrei(R, aktiv) {
+  const nurAktiv = l => l.filter(t => t.ids.every(x => aktiv.has(x)));
+  // 1) bewährte Linien
+  const linien = besteDisjunkte(nurAktiv(R.linien), 3);
+  // 2) Baukasten: 3 Paare + 3 Trios, alle ohne Überschneidung
+  const paare = nurAktiv(R.vPaare).filter(t => avg(t) != null).sort((a, b) => punkte(b) - punkte(a)).slice(0, 15);
+  const trios = nurAktiv(R.sTrios).filter(t => avg(t) != null).sort((a, b) => punkte(b) - punkte(a)).slice(0, 15);
+  // alle überschneidungsfreien Auswahlen mit 1–k Einträgen
+  const sets = (liste, k) => { const out = []; const such = (i, w, b) => {
+    if (w.length) out.push([...w]);
+    if (w.length === k) return;
+    for (let j = i; j < liste.length; j++) { if (!frei(liste[j].ids, b)) continue;
+      liste[j].ids.forEach(x => b.add(x)); such(j + 1, [...w, liste[j]], b); liste[j].ids.forEach(x => b.delete(x)); }
+  }; such(0, [], new Set()); return out; };
+  const summe = l => l.reduce((a, x) => a + punkte(x), 0);
+  const pSets = sets(paare, 3), tSets = sets(trios, 3);
+  let best = null, bestP = -Infinity;
+  for (const ps of pSets) {
+    const belegt = new Set(ps.flatMap(p => p.ids));
+    for (const ts of tSets) {
+      // gleich viele Paare wie Trios (= Anzahl Linien), niemand doppelt
+      if (ts.length !== ps.length || !ts.every(t => frei(t.ids, belegt))) continue;
+      const p = ps.length * 1000 + summe(ps) + summe(ts);
+      if (p > bestP) { bestP = p; best = { ps, ts }; }
+    }
+  }
+  let bau = [];
+  if (best) {
+    // Paare den Trios zuordnen: bekannte gute Kombis (Paar × Trio) bevorzugen
+    const pt = new Map(R.paarTrio.map(t => [t.key, t]));
+    const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(r => [x, ...r]));
+    const wert = (p, t) => { const k = pt.get(p.key + '#' + t.key); return k && avg(k) != null ? avg(k) : (avg(p) + avg(t)) / 2 - 0.25; };
+    let bp = null, bw = -Infinity;
+    for (const perm of perms(best.ts)) {
+      const w = best.ps.reduce((a, p, i) => a + wert(p, perm[i]), 0);
+      if (w > bw) { bw = w; bp = perm; }
+    }
+    bau = best.ps.map((p, i) => ({ paar: p, trio: bp[i], zusammen: pt.get(p.key + '#' + bp[i].key) || null }))
+      .sort((a, b) => wert(b.paar, b.trio) - wert(a.paar, a.trio));
+  }
+  return { linien, bau };
+}
+
 // ---- Darstellung -----------------------------------------------
 export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
+  const aktiv = new Set(personen.filter(k => k.aktiv).map(k => k.id));
   const name = id => {
     const k = kMap.get(id);
     return k ? `${k.nummer != null ? `<b>${k.nummer}</b> ` : ''}${esc(kurz.get(id) ?? k.name)}` : '?';
@@ -239,15 +310,15 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
     </li>`;
   }
 
-  function block(key, titel, info, liste, render) {
+  function block(key, titel, info, liste, render, anzahl = ZEIGE) {
     const sorted = sortiere(E.person ? liste.filter(t => t.ids.includes(E.person)) : liste, E.sort);
     const offen = E.offen.has(key);
-    const zeigen = offen ? sorted : sorted.slice(0, ZEIGE);
+    const zeigen = offen ? sorted : sorted.slice(0, anzahl);
     return `<section class="aw-block">
       <h3 class="gruppe">${titel} <span>${sorted.length}</span></h3>
       ${info ? `<p class="muted klein aw-erkl">${info}</p>` : ''}
       ${sorted.length ? `<ul class="aw-liste">${zeigen.map(render).join('')}</ul>
-        ${sorted.length > ZEIGE ? `<button class="btn ghost small aw-mehr" data-k="${key}">${offen ? 'Weniger anzeigen' : `Alle ${sorted.length} anzeigen`}</button>` : ''}`
+        ${sorted.length > anzahl ? `<button class="btn ghost small aw-mehr" data-k="${key}">${offen ? '▲ Weniger anzeigen' : `▼ Alle ${sorted.length} anzeigen`}</button>` : ''}`
         : '<p class="muted klein aw-leer">Noch keine Daten.</p>'}
     </section>`;
   }
@@ -272,11 +343,42 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
           }).join(' · ')}</div>` : '',
         }));
     } else if (E.bereich === 'paare') {
-      inhalt = block('vp', '🛡️ Verteidigerpaare', '', R.vPaare, t => zeile(t, namen(t.ids)))
-        + block('st', '⚡ Sturmtrios', '', R.sTrios, t => zeile(t, namen(t.ids)))
-        + block('sd', '🤝 Sturmduos', 'Zwei Stürmer:innen gemeinsam – auch wenn die dritte Person wechselt.', R.sDuos, t => zeile(t, namen(t.ids)))
+      inhalt = block('vp', '🛡️ Verteidigerpaare', '', R.vPaare, t => zeile(t, namen(t.ids)), ZEIGE_PAARE)
+        + block('st', '⚡ Sturmtrios', '', R.sTrios, t => zeile(t, namen(t.ids)), ZEIGE_PAARE)
+        + block('sd', '🤝 Sturmduos', 'Zwei Stürmer:innen gemeinsam – auch wenn die dritte Person wechselt.', R.sDuos, t => zeile(t, namen(t.ids)), ZEIGE_PAARE)
         + block('pt', '🧩 Verteidigerpaar + Sturmtrio', '', R.paarTrio, t => zeile(t,
-          `<span class="aw-gruppe">${namen(t.paar)}</span><span class="aw-plus">+</span><span class="aw-gruppe">${namen(t.trio)}</span>`));
+          `<span class="aw-gruppe">${namen(t.paar)}</span><span class="aw-plus">+</span><span class="aw-gruppe">${namen(t.trio)}</span>`), ZEIGE_PAARE);
+    } else if (E.bereich === 'top3') {
+      const T3 = topDrei(E.spezial ? berechne(baum, { ...E, spezial: false }) : R, aktiv);   // Top 3: nur echte Linien, ohne PP/BP
+      const unsicher = t => t.bewertet.size < MIN_EINSAETZE;
+      const hinweisU = l => l.some(unsicher) ? `<p class="aw-hinweis">⚠️ Noch nicht genug Noten (ab ${MIN_EINSAETZE} bewerteten Einsätzen) – Vorschlag ist vorläufig.</p>` : '';
+      const rang = i => `<span class="aw-rang">Linie ${i + 1}</span>`;
+      const kurzNote = t => `Ø ${avg(t).toFixed(1)} <small>(${t.bewertet.size}× bewertet)</small>`;
+      inhalt = `<section class="aw-block">
+          <h3 class="gruppe">🏆 Beste 3 bewährte Linien</h3>
+          <p class="muted klein aw-erkl">Aus den Stamm-Linien die 3 mit der besten Ø Note – niemand kommt doppelt vor, nur aktive Spieler:innen.</p>
+          ${T3.linien.length ? `<ul class="aw-liste">${T3.linien.map((t, i) => zeile(t, rang(i) + namen(t.ids, t.rollen))).join('')}</ul>${hinweisU(T3.linien)}`
+            : '<p class="muted klein aw-leer">Noch keine bewerteten Linien.</p>'}
+          ${T3.linien.length && T3.linien.length < 3 ? '<p class="aw-hinweis">Mehr Linien ohne Überschneidung gibt es noch nicht.</p>' : ''}
+        </section>
+        <section class="aw-block">
+          <h3 class="gruppe">🧩 Baukasten: beste Paare + Trios</h3>
+          <p class="muted klein aw-erkl">Die 3 besten Verteidigerpaare und die 3 besten Sturmtrios ohne Überschneidung, so kombiniert, dass Paar und Trio möglichst gut zusammenpassen.</p>
+          ${T3.bau.length ? `<ul class="aw-liste">${T3.bau.map((b, i) => {
+            const z = b.zusammen;
+            const est = z && avg(z) != null ? avg(z) : (avg(b.paar) + avg(b.trio)) / 2;
+            return `<li class="aw-zeile ${unsicher(b.paar) || unsicher(b.trio) ? 'wenig' : ''}">
+              <div class="aw-haupt">
+                <div class="aw-namen">${rang(i)}<span class="aw-gruppe">${namen(b.paar.ids)}</span><span class="aw-plus">+</span><span class="aw-gruppe">${namen(b.trio.ids)}</span></div>
+                <div class="aw-info">🛡️ Paar ${kurzNote(b.paar)} · ⚡ Trio ${kurzNote(b.trio)}</div>
+                <div class="${z ? 'aw-zus' : 'aw-var'}">${z ? `✔ So schon ${z.einsaetze.size}× zusammen gespielt${avg(z) != null ? ` · Ø ${avg(z).toFixed(1)}` : ''}` : '✦ In dieser Kombination noch nie zusammen – zum Ausprobieren'}</div>
+              </div>
+              <div class="aw-wert"><span class="aw-note">${z && avg(z) != null ? '' : '≈'}${est.toFixed(1)}</span>
+                <span class="aw-bar"><i style="width:${Math.round((est / 6) * 100)}%"></i></span></div>
+            </li>`;
+          }).join('')}</ul>${hinweisU(T3.bau.flatMap(b => [b.paar, b.trio]))}`
+            : '<p class="muted klein aw-leer">Noch keine bewerteten Paare und Trios.</p>'}
+        </section>`;
     } else {
       const T = R.team;
       const teamZeile = T && T.matches ? `<div class="aw-team">
@@ -292,13 +394,13 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
 
     ziel.innerHTML = `
       <div class="aw-steuer">
-        ${seg('aw-bereich', 'bereich', [['linien', 'Linien'], ['paare', 'Paare & Trios'], ['spezial', 'PP / BP']])}
-        ${seg('aw-sort', 'sort', [['note', '⭐ Ø Note'], ['tore', '⚽ Tore'], ['haeufig', '🔁 Häufigkeit']])}
+        ${seg('aw-bereich', 'bereich', [['linien', 'Linien'], ['top3', '🏆 Top 3'], ['paare', 'Paare/Trios'], ['spezial', 'PP / BP']])}
+        ${E.bereich === 'top3' ? '' : seg('aw-sort', 'sort', [['note', '⭐ Ø Note'], ['tore', '⚽ Tore'], ['haeufig', '🔁 Häufigkeit']])}
         <div class="aw-filter">
           <label>Gewichtung<select class="aw-modus">
             ${[['match2', 'Match zählt doppelt'], ['gleich', 'Alles gleich'], ['match', 'Nur Matches'], ['training', 'Nur Trainings']]
               .map(([v, t]) => `<option value="${v}" ${E.modus === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-          <label>Person<select class="aw-person"><option value="">Alle</option>
+          <label ${E.bereich === 'top3' ? 'hidden' : ''}>Person<select class="aw-person"><option value="">Alle</option>
             ${personen.map(k => `<option value="${k.id}" ${E.person === k.id ? 'selected' : ''}>${k.nummer != null ? k.nummer + ' ' : ''}${esc(k.name)}</option>`).join('')}</select></label>
         </div>
         ${E.bereich === 'paare' ? `<label class="aw-check"><input type="checkbox" class="aw-spezial" ${E.spezial ? 'checked' : ''}> Powerplay & Boxplay mitzählen</label>` : ''}
@@ -307,7 +409,7 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
       ${R.anzahlEinsaetze ? inhalt : '<p class="muted pad leer">Noch keine Einsätze mit eingeteilten Personen.</p>'}`;
 
     ziel.querySelector('.aw-bereich').onclick = e => { const b = e.target.closest('button'); if (b) { E.bereich = b.dataset.v; zeichne(); } };
-    ziel.querySelector('.aw-sort').onclick = e => { const b = e.target.closest('button'); if (b) { E.sort = b.dataset.v; zeichne(); } };
+    ziel.querySelector('.aw-sort')?.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { E.sort = b.dataset.v; zeichne(); } });
     ziel.querySelector('.aw-modus').onchange = e => { E.modus = e.target.value; zeichne(); };
     ziel.querySelector('.aw-person').onchange = e => { E.person = e.target.value; zeichne(); };
     ziel.querySelector('.aw-spezial')?.addEventListener('change', e => { E.spezial = e.target.checked; zeichne(); });

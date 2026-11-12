@@ -229,3 +229,23 @@ body.ln-fokus main { padding-bottom: 24px; }
 .aw-team p { margin: 4px 0 0; }
 .ln-stat-hinweis { background: #ecfdf5; color: #065f46; border-radius: 10px; padding: 8px 12px; font-size: .88rem; margin: 0 0 10px; }
 .ln-stat-link { text-decoration: none; }
+
+/* Neuer Einsatz: Linien neu oder übernehmen (Suche) */
+.ln-vorlage { display: grid; gap: 8px; }
+.ln-lbl { font-weight: 600; font-size: .9rem; }
+.ln-vorlage .seg { margin: 0; display: flex; }
+.ln-vorlage .seg button { flex: 1; }
+.ln-vsuche { display: grid; gap: 8px; }
+.ln-vsuch { padding: 8px 10px; }
+.ln-vtreffer { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ln-vt {
+  width: 100%; text-align: left; font: inherit; font-size: .9rem; color: inherit; cursor: pointer;
+  background: var(--bg); border: 2px solid transparent; border-radius: 10px; padding: 7px 10px;
+}
+.ln-vt.on { border-color: var(--team); background: #fff1f2; }
+
+/* Auswertung: Top 3 */
+.aw-steuer .aw-bereich button { font-size: .85rem; padding: 7px 4px; }
+.aw-rang { background: var(--nav); color: #fff; border-radius: 6px; padding: 2px 8px; font-size: .75rem; font-weight: 800; white-space: nowrap; }
+.aw-zus { font-size: .78rem; color: #065f46; background: #ecfdf5; border-radius: 8px; padding: 3px 8px; justify-self: start; }
+.aw-hinweis { font-size: .8rem; color: #92400e; margin: 8px 2px 0; }

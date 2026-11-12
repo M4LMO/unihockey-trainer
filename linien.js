@@ -384,11 +384,12 @@ export async function mount(root) {
 
   // ---- Einsatz anlegen / bearbeiten ----------------------------
   function einsatzDialog(e, alle = []) {
-    const vorlagen = alle.slice(0, 15).flatMap(x => [...x.varianten].sort((a, b) => a.nr - b.nr).map(v => ({
-      id: v.id,
+    // Vorlagen zum Übernehmen (Suche über alle Einsätze dieses Kaders)
+    const vorlagen = alle.flatMap(x => [...x.varianten].sort((a, b) => a.nr - b.nr).map(v => ({
+      id: v.id, icon: typIcon(x),
       text: `${datumText(x.datum)} · ${x.titel || typText(x)}${x.varianten.length > 1 ? ` · ${v.name || 'Version ' + v.nr}` : ''}`,
+      such: `${datumText(x.datum)} ${x.datum} ${x.titel || ''} ${typText(x)} ${v.name || ''} version ${v.nr}`.toLowerCase(),
     })));
-    const letzte = alle[0] ? [...alle[0].varianten].sort((a, b) => b.nr - a.nr)[0]?.id : '';
     const typ0 = e ? artVon(e) : 'training';
     oeffneDialog(`
       <h2>${e ? 'Einsatz bearbeiten' : 'Neuer Einsatz'}</h2>
@@ -403,12 +404,14 @@ export async function mount(root) {
           ${Object.entries(ORT).map(([k, v]) => `<option value="${k}" ${e?.ort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       </div>
       <label>Notiz<textarea name="notiz" rows="2">${esc(e?.notiz || '')}</textarea></label>
-      ${e ? '' : `<label>Linien
-        <select name="vorlage">
-          <option value="">Leer starten (4 Linien)</option>
-          ${vorlagen.length ? `<optgroup label="Übernehmen von …">${vorlagen.map(v => `<option value="${v.id}" ${v.id === letzte ? 'selected' : ''}>${esc(v.text)}</option>`).join('')}</optgroup>` : ''}
-        </select></label>
-        <p class="muted klein">Übernommen werden Linien, Powerplay & Boxplay mit allen aktiven Personen – ohne Noten.</p>`}
+      ${e ? '' : `<div class="ln-vorlage"><span class="ln-lbl">Linien</span>
+        <div class="seg ln-vmodus"><button data-v="neu" class="on">＋ Neue Linien</button><button data-v="kopie" ${vorlagen.length ? '' : 'disabled'}>↻ Übernehmen</button></div>
+        <div class="ln-vsuche" hidden>
+          <input type="search" class="ln-vsuch" placeholder="Suchen: Datum, Gegner, Titel …" autocomplete="off">
+          <ul class="ln-vtreffer"></ul>
+          <p class="muted klein">Übernommen werden Linien, Powerplay & Boxplay mit allen aktiven Personen – ohne Noten.</p>
+        </div></div>`}
+      <p class="error ln-v-err" hidden></p>
       <div class="dlg-actions">
         ${e ? '<button class="btn danger btn-del">Löschen</button><span style="flex:1"></span>' : ''}
         <button class="btn ghost btn-zu">Abbrechen</button>
@@ -424,6 +427,27 @@ export async function mount(root) {
         d.querySelector('[name=titel]').placeholder = t === 'training' ? 'z.B. Abschlusstraining' : 'z.B. UHC Muster';
       };
       setTyp(typ);
+      // Linien: neu (Standard) oder von früherem Einsatz übernehmen (mit Suche)
+      let vmodus = 'neu', vorlage = null;
+      const zeigeTreffer = () => {
+        const q = d.querySelector('.ln-vsuch').value.toLowerCase().split(/\s+/).filter(Boolean);
+        const treffer = (q.length ? vorlagen.filter(v => q.every(w => v.such.includes(w))) : vorlagen).slice(0, q.length ? 8 : 5);
+        d.querySelector('.ln-vtreffer').innerHTML = treffer.length ? treffer.map(v =>
+          `<li><button class="ln-vt ${v.id === vorlage ? 'on' : ''}" data-v="${v.id}">${v.icon} ${esc(v.text)}</button></li>`).join('')
+          : '<li class="muted klein">Nichts gefunden.</li>';
+      };
+      d.querySelector('.ln-vmodus')?.addEventListener('click', ev => {
+        const b = ev.target.closest('button'); if (!b || b.disabled) return;
+        vmodus = b.dataset.v;
+        d.querySelectorAll('.ln-vmodus button').forEach(x => x.classList.toggle('on', x === b));
+        d.querySelector('.ln-vsuche').hidden = vmodus !== 'kopie';
+        if (vmodus === 'kopie') { zeigeTreffer(); d.querySelector('.ln-vsuch').focus(); }
+      });
+      d.querySelector('.ln-vsuch')?.addEventListener('input', zeigeTreffer);
+      d.querySelector('.ln-vtreffer')?.addEventListener('click', ev => {
+        const b = ev.target.closest('.ln-vt'); if (!b) return;
+        vorlage = b.dataset.v; d.querySelector('.ln-v-err').hidden = true; zeigeTreffer();
+      });
       d.querySelector('.ln-etyp').onclick = ev => { const b = ev.target.closest('button'); if (b) setTyp(b.dataset.t); };
       d.querySelector('.btn-zu').onclick = schliesse;
       d.querySelector('.btn-del')?.addEventListener('click', async () => {
@@ -438,6 +462,10 @@ export async function mount(root) {
           resultat: spiel ? f('resultat') : null,
           wettbewerb: typ === 'test' ? 'test' : typ === 'match' ? f('wettbewerb') : null,
           ort: spiel ? f('ort') : null };
+        if (!e && vmodus === 'kopie' && !vorlage) {
+          const err = d.querySelector('.ln-v-err');
+          err.textContent = 'Bitte einen Einsatz zum Übernehmen auswählen – oder „Neue Linien“.'; err.hidden = false; return;
+        }
         const btn = d.querySelector('.btn-ok'); btn.disabled = true;
         try {
           if (e) {
@@ -445,8 +473,7 @@ export async function mount(root) {
             schliesse(); neuLaden();
           } else {
             const neu = await db(sb.from('einsaetze').insert({ ...daten, liste_id: S.liste.id }).select().single());
-            const vorlage = f('vorlage');
-            if (vorlage) await kopiereVariante(vorlage, neu.id, 1, null);
+            if (vmodus === 'kopie' && vorlage) await kopiereVariante(vorlage, neu.id, 1, null);
             else await neueVariante(neu.id, 1, null);
             toast('Einsatz erstellt', 'ok');
             schliesse(); location.hash = `#/linien/e/${neu.id}`;
