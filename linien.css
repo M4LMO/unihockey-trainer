@@ -203,3 +203,20 @@ a.karte { text-decoration: none; }
 .aw-einh { font-size: .7rem; color: var(--muted); margin-top: -4px; }
 .aw-top { display: flex; margin-top: 12px; }
 .aw-top button { flex: 1; font-size: .85rem; padding: 7px 4px; }
+
+/* Reiter 💡 Ideen */
+.ln-tabs button { font-size: .8rem; padding: 7px 2px; }
+.id-hinweis { background: #eff6ff; color: #1e3a8a; border-radius: 10px; padding: 8px 12px; font-size: .85rem; margin: 0 0 10px; }
+.id-badge {
+  flex: none; min-width: 56px; text-align: center; font-weight: 800; font-size: .95rem; color: var(--team);
+  background: var(--bg); border-radius: 10px; padding: 6px 8px; display: grid; justify-items: center;
+}
+.id-badge small { font-size: .65rem; color: var(--muted); font-weight: 600; }
+.id-neu .id-badge { color: #7c3aed; }
+.id-warn { box-shadow: inset 3px 0 0 #f59e0b, var(--shadow); }
+.id-warn .id-badge { color: #b45309; }
+.id-art { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #475569; background: #e2e8f0; border-radius: 6px; padding: 2px 7px; margin-right: 2px; white-space: nowrap; }
+.id-wahl { display: grid; gap: 4px; max-width: 320px; margin-bottom: 10px; }
+.id-wahl select { padding: 8px 10px; }
+.id-nie { display: flex; flex-wrap: wrap; gap: 6px; }
+.id-1x { opacity: .75; }

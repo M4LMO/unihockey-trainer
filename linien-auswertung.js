@@ -2,7 +2,7 @@
 //  Linien-Tool: Auswertungen
 //  - Stamm-Linien (ähnliche Linien: mind. 4 von 5 gleich)
 //  - Verteidigerpaare, Sturmtrios, Sturmduos, Paar × Trio
-//  - Top 3: beste Linien / Paare+Trios ohne doppelte Personen,
+//  - Top 3: beste bewährte Linien ohne doppelte Personen (Baukasten → linien-ideen.js),
 //    aus Häufigkeit und Toren + Skorerpunkten (Statistik-Tool)
 //  - Powerplay / Boxplay / 6 gegen 5 mit Quote
 //  Gezählt werden nur Kader-Personen (keine Gäste).
@@ -232,14 +232,16 @@ function besteDisjunkte(kand, k, wert, N = 25) {
   return best.sort((a, b) => wert(b) - wert(a));
 }
 
+// art: 'mix' | 'haeufig' | 'tore' oder eigene Funktion (liste → t → Wert 0–1), z.B. aus linien-ideen.js
 export function topDrei(R, aktiv, art = 'mix') {
+  const B = typeof art === 'function' ? art : l => bewerter(l, art);
   const nurAktiv = l => l.filter(t => t.ids.every(x => aktiv.has(x)));
   // 1) bewährte Linien
   const lin = nurAktiv(R.linien);
-  const linien = besteDisjunkte(lin, 3, bewerter(lin, art));
+  const linien = besteDisjunkte(lin, 3, B(lin));
   // 2) Baukasten: 3 Paare + 3 Trios, alle ohne Überschneidung
   const pAlle = nurAktiv(R.vPaare), tAlle = nurAktiv(R.sTrios);
-  const wP = bewerter(pAlle, art), wT = bewerter(tAlle, art);
+  const wP = B(pAlle), wT = B(tAlle);
   const paare = [...pAlle].sort((a, b) => wP(b) - wP(a)).slice(0, 15);
   const trios = [...tAlle].sort((a, b) => wT(b) - wT(a)).slice(0, 15);
   // alle überschneidungsfreien Auswahlen mit 1–k Einträgen
@@ -264,7 +266,7 @@ export function topDrei(R, aktiv, art = 'mix') {
   if (best) {
     // Paare den Trios zuordnen: Kombis, die schon zusammen gespielt haben, bevorzugen
     const pt = new Map(R.paarTrio.map(t => [t.key, t]));
-    const wPT = bewerter(R.paarTrio, art);
+    const wPT = B(R.paarTrio);
     const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(r => [x, ...r]));
     const wert = (p, t) => { const k = pt.get(p.key + '#' + t.key); return (k ? 1 + wPT(k) : 0) + (wP(p) + wT(t)) / 2; };
     let bp = null, bw = -Infinity;
@@ -372,21 +374,7 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
             : '<p class="muted klein aw-leer">Noch keine Linien erfasst.</p>'}
           ${T3.linien.length && T3.linien.length < 3 ? '<p class="aw-hinweis">Mehr Linien ohne Überschneidung gibt es noch nicht.</p>' : ''}
         </section>
-        <section class="aw-block">
-          <h3 class="gruppe">🧩 Baukasten: beste Paare + Trios</h3>
-          <p class="muted klein aw-erkl">Die 3 besten Verteidigerpaare und die 3 besten Sturmtrios (${erkl}) ohne Überschneidung – Kombinationen, die schon zusammen gespielt haben, werden bevorzugt.</p>
-          ${T3.bau.length ? `<ul class="aw-liste">${T3.bau.map((b, i) => {
-            const z = b.zusammen;
-            return `<li class="aw-zeile">
-              <div class="aw-haupt">
-                <div class="aw-namen">${rang(i)}<span class="aw-gruppe">${namen(b.paar.ids)}</span><span class="aw-plus">+</span><span class="aw-gruppe">${namen(b.trio.ids)}</span></div>
-                <div class="aw-info">🛡️ Paar ${kurzInfo(b.paar)} · ⚡ Trio ${kurzInfo(b.trio)}</div>
-                <div class="${z ? 'aw-zus' : 'aw-var'}">${z ? `✔ So schon ${z.einsaetze.size}× zusammen gespielt${z.tf ? ` · ⚽ ${z.tf}` : ''}` : '✦ In dieser Kombination noch nie zusammen – zum Ausprobieren'}</div>
-              </div>
-              <div class="aw-wert"><span class="aw-note">${z ? `${z.einsaetze.size}×` : 'neu'}</span><small class="aw-einh">${z ? 'zusammen' : 'Kombi'}</small></div>
-            </li>`;
-          }).join('')}</ul>` : '<p class="muted klein aw-leer">Noch keine Paare und Trios erfasst.</p>'}
-        </section>`;
+        <p class="aw-hinweis">💡 Neue Kombis und eine Test-Aufstellung findest du im Reiter <b>Ideen</b>.</p>`;
     } else {
       const T = R.team;
       const teamZeile = T && T.matches ? `<div class="aw-team">

@@ -4,7 +4,7 @@
 //  Spalten note/notiz und Tabelle chemie bleiben in der DB unbenutzt).
 //
 //  Ansichten (Hash):
-//    #/linien            Übersicht (Tabs: Einsätze / Personen / Auswertung)
+//    #/linien            Übersicht (Tabs: Einsätze / Personen / Auswertung / Ideen)
 //    #/linien/e/<id>     ein Einsatz (Aufstellen; Screenshot-Modus ausgebaut 12.11.)
 //    #/linien/p/<id>     Historie einer Person
 // ============================================================
@@ -12,6 +12,7 @@ import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
 import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel } from './kontext.js';
 import { zeichneAuswertung } from './linien-auswertung.js';
+import { zeichneIdeen } from './linien-ideen.js';
 import { andereNummern, auchNr } from './nummern.js';
 
 // ---- Arten von Formationen und Systeme -------------------------
@@ -36,7 +37,7 @@ const SYSTEME = {
 const ROLLEN = { V: 'Verteidigung', S: 'Sturm', flex: 'flexibel' };
 const WETTBEWERB = { meisterschaft: 'Meisterschaft', cup: 'Cup', test: 'Testspiel' };
 const ORT = { heim: 'Heim', auswaerts: 'Auswärts' };
-const TABS = ['einsaetze', 'personen', 'auswertung'];
+const TABS = ['einsaetze', 'personen', 'auswertung', 'ideen'];
 
 // ---- kleine Helfer ---------------------------------------------
 const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -223,6 +224,7 @@ export async function mount(root) {
           <button data-t="einsaetze" class="${tab === 'einsaetze' ? 'on' : ''}">Einsätze</button>
           <button data-t="personen" class="${tab === 'personen' ? 'on' : ''}">Personen</button>
           <button data-t="auswertung" class="${tab === 'auswertung' ? 'on' : ''}">Auswertung</button>
+          <button data-t="ideen" class="${tab === 'ideen' ? 'on' : ''}">💡 Ideen</button>
         </div>
         <div class="ln-tab"><p class="muted pad">Lade …</p></div>`;
       inhalt.querySelector('.ln-tabs').onclick = e => {
@@ -233,9 +235,11 @@ export async function mount(root) {
       };
       const ziel = inhalt.querySelector('.ln-tab');
       const fab = box.querySelector('.fab');
-      fab.hidden = nurLesen() || tab === 'personen' || tab === 'auswertung';
+      fab.hidden = nurLesen() || tab !== 'einsaetze';
       if (tab === 'einsaetze') await tabEinsaetze(ziel, fab);
       else if (tab === 'personen') await tabPersonen(ziel);
+      else if (tab === 'ideen') zeichneIdeen(ziel, await ladeBaum(S.liste.id),
+        { kMap: S.kMap, kurz: S.kurz, personen: S.kader.filter(istFeld) });
       else zeichneAuswertung(ziel, await ladeBaum(S.liste.id),
         { kMap: S.kMap, kurz: S.kurz, personen: S.kader.filter(istFeld) });
     }
