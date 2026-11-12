@@ -50,3 +50,24 @@ export function naechsteSaison(saisons) {
 }
 
 export const teamLabel = t => t ? `${t.verein} – ${t.name}` : '';
+
+// ---- Wer bin ich? (Admin oder Staff eines Teams) -----------------
+let ichCache = null;
+export async function ladeIch(neu = false) {
+  if (ichCache && !neu) return ichCache;
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session?.user;
+  if (!user) return null;
+  const { data, error } = await sb.from('zugang').select('*').eq('user_id', user.id).maybeSingle();
+  if (error) {
+    // Tabelle "zugang" gibt es noch nicht (SQL 05 nicht ausgeführt) → altes Verhalten
+    if (/zugang|does not exist|PGRST205|42P01/i.test(`${error.code} ${error.message}`))
+      return (ichCache = { uid: user.id, email: user.email, admin: true, teamId: null, ohneZugang: false, alt: true });
+    throw error;
+  }
+  return (ichCache = {
+    uid: user.id, email: user.email,
+    admin: !!data?.admin, teamId: data?.team_id ?? null, ohneZugang: !data,
+  });
+}
+export function vergissIch() { ichCache = null; }

@@ -6,7 +6,7 @@ import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
 import { ladeAndereNummern, auchNr } from './nummern.js';
 import {
-  ladeStammdaten, ladeKader, getAuswahl, setAuswahl, naechsteSaison, teamLabel,
+  ladeStammdaten, ladeKader, getAuswahl, setAuswahl, naechsteSaison, teamLabel, ladeIch,
 } from './kontext.js';
 
 export { ladeKader };
@@ -49,6 +49,10 @@ export async function mount(root) {
   const dlg = $('.dlg-person');
   const form = dlg.querySelector('form');
   const vw = $('.dlg-verwaltung');
+
+  // Saisons & Teams verwaltet nur der Admin
+  const ich = await ladeIch().catch(() => null);
+  if (!ich?.admin) $('.btn-verwalten').hidden = true;
 
   const saison = () => st.saisons.find(s => s.id === saisonId);
   const team = () => st.teams.find(t => t.id === teamId);
@@ -133,6 +137,14 @@ export async function mount(root) {
     if (key === inhaltKey && zustand === 'liste') return zeichneListe();
     inhaltKey = key;
 
+    if (zustand === 'setup' && !ich?.admin) {
+      inhalt.innerHTML = `
+        <div class="hinweis">
+          <h3>👋 Willkommen!</h3>
+          <p>Für dieses Team ist noch keine Saison eingerichtet. Bitte beim Admin melden.</p>
+        </div>`;
+      return;
+    }
     if (zustand === 'setup') {
       inhalt.innerHTML = `
         <div class="hinweis">
