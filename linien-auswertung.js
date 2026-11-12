@@ -1,22 +1,23 @@
 // ============================================================
-//  Linien-Tool: Auswertungen (Update B)
-//  - Stamm-/Top-Linien (ähnliche Linien: mind. 4 von 5 gleich)
+//  Linien-Tool: Auswertungen
+//  - Stamm-Linien (ähnliche Linien: mind. 4 von 5 gleich)
 //  - Verteidigerpaare, Sturmtrios, Sturmduos, Paar × Trio
+//  - Top 3: beste Linien / Paare+Trios ohne doppelte Personen,
+//    aus Häufigkeit und Toren + Skorerpunkten (Statistik-Tool)
 //  - Powerplay / Boxplay / 6 gegen 5 mit Quote
 //  Gezählt werden nur Kader-Personen (keine Gäste).
-//  - Top 3: beste Linien / Paare+Trios ohne doppelte Personen
+//  Bewertungen (Noten) und Chemie sind seit 12.11. ausgebaut.
 //  Update S2: Daten aus dem Statistik-Tool (Tore pro Linie,
 //  Skorerpunkte, Plus/Minus, PP/BP-Quoten automatisch).
 // ============================================================
 import { esc } from './ui.js';
 import { zeitleiste, versionen } from './statistik-logik.js';
 
-export const MIN_EINSAETZE = 5;   // ab so vielen bewerteten Einsätzen in den Top-Listen
 const ZEIGE = 10;                 // so viele Einträge pro Liste (Linien), Rest aufklappbar
 const ZEIGE_PAARE = 5;            // Paare & Trios
 
 // Einstellungen bleiben erhalten, solange die App offen ist
-const E = { modus: 'match2', spezial: false, sort: 'note', bereich: 'linien', person: '', offen: new Set() };
+const E = { modus: 'alle', spezial: false, sort: 'haeufig', top: 'mix', bereich: 'linien', person: '', offen: new Set() };
 
 // ---- Statistik-Tool → Linien -----------------------------------
 // Pro Match: welche Linie/Formation hat welches Tor erzielt bzw. kassiert?
@@ -88,20 +89,17 @@ class Topf {
   add(key, ids, o, extra) {
     let t = this.m.get(key);
     if (!t) this.m.set(key, t = {
-      key, ids, einsaetze: new Set(), bewertet: new Set(), sw: 0, swn: 0, n: 0,
-      tr: [], ma: [], anzahl: 0, tore: 0, rollen: {},
+      key, ids, einsaetze: new Set(), training: new Set(), match: new Set(),
+      anzahl: 0, tore: 0, rollen: {},
       tf: 0, tg: 0, plus: 0, minus: 0, pkt: 0, ...extra,
     });
     t.einsaetze.add(o.e.id);
-    if (o.note != null) {
-      t.sw += o.w; t.swn += o.w * o.note; t.n++; t.bewertet.add(o.e.id);
-      (o.e.typ === 'match' ? t.ma : t.tr).push(o.note);
-    }
+    (o.e.typ === 'match' ? t.match : t.training).add(o.e.id);
     if (o.e.typ === 'match') {
       if (o.e.hatStat) {
         // Aus der Statistik: Quote der Formation (BP: „tore“ = Gegentore)
         if (o.l.art !== 'linie' && o.st) { t.anzahl += o.st.anzahl; t.tore += o.l.art === 'bp' ? o.st.tg : o.st.tf; }
-      } else if (o.l.anzahl != null) { t.anzahl += o.l.anzahl; t.tore += o.l.tore ?? 0; }   // Handzähler
+      } else if (o.l.anzahl != null) { t.anzahl += o.l.anzahl; t.tore += o.l.tore ?? 0; }   // alte Handzähler
     }
     if (o.st) {
       t.tf += o.st.tf; t.tg += o.st.tg; t.plus += o.st.plus; t.minus += o.st.minus;
@@ -111,10 +109,8 @@ class Topf {
   }
   liste() { return [...this.m.values()]; }
 }
-const schnitt = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-const avg = t => t.sw ? t.swn / t.sw : null;
 
-export function berechne(baum, { modus = 'match2', spezial = false } = {}) {
+export function berechne(baum, { modus = 'alle', spezial = false } = {}) {
   // 0) Statistik-Tool: Tore/Chancen pro Linie
   const { M: stat, team } = statistikProLinie(baum);
 
@@ -123,11 +119,10 @@ export function berechne(baum, { modus = 'match2', spezial = false } = {}) {
   for (const e of baum) {
     if (modus === 'match' && e.typ !== 'match') continue;
     if (modus === 'training' && e.typ !== 'training') continue;
-    const w = modus === 'match2' && e.typ === 'match' ? 2 : 1;
     for (const v of e.varianten) for (const l of v.linien) {
       const rows = l.linien_spieler.filter(r => r.kader_id);
       if (!rows.length) continue;
-      obs.push({ e, v, l, w, rows, st: stat.get(l.id), note: l.note == null ? null : Number(l.note) });
+      obs.push({ e, v, l, rows, st: stat.get(l.id) });
     }
   }
 
@@ -158,7 +153,7 @@ export function berechne(baum, { modus = 'match2', spezial = false } = {}) {
     return gleich >= Math.max(a.length, b.length) - 1;
   };
   const cluster = [];
-  for (const x of exakt.liste().sort((a, b) => b.einsaetze.size - a.einsaetze.size || b.n - a.n)) {
+  for (const x of exakt.liste().sort((a, b) => b.einsaetze.size - a.einsaetze.size)) {
     let c = cluster.find(c => aehnlich(c.ids, x.ids));
     if (!c) { c = { ids: x.ids, rollen: { ...x.rollen }, mitglieder: [] }; cluster.push(c); }
     c.mitglieder.push(x);
@@ -186,31 +181,41 @@ export function berechne(baum, { modus = 'match2', spezial = false } = {}) {
 
   return {
     anzahlEinsaetze: new Set(obs.map(o => o.e.id)).size,
+    mitStat: baum.filter(e => e.hatStat && (modus !== 'training')).length,
     team: modus === 'training' ? null : team,
-    bewertet: obs.filter(o => o.note != null).length,
     linien, vPaare: vPaare.liste(), sTrios: sTrios.liste(), sDuos: sDuos.liste(), paarTrio: paarTrio.liste(),
     pp: spez.pp.liste(), bp: spez.bp.liste(), '6v5': spez['6v5'].liste(),
   };
 }
 
+// Produktion = Tore der Linie + Skorerpunkte der Personen
+const prod = t => t.tf + t.pkt;
+
 export function sortiere(liste, sort) {
-  const ok = t => t.bewertet.size >= MIN_EINSAETZE;
   if (sort === 'tore') return [...liste].sort((a, b) =>
     b.tf - a.tf || b.pkt - a.pkt || (b.plus - b.minus) - (a.plus - a.minus) || b.einsaetze.size - a.einsaetze.size);
-  return [...liste].sort((a, b) => sort === 'haeufig'
-    ? b.einsaetze.size - a.einsaetze.size || (avg(b) ?? 0) - (avg(a) ?? 0)
-    : (ok(b) - ok(a)) || (ok(a) ? avg(b) - avg(a) : b.einsaetze.size - a.einsaetze.size) || (avg(b) ?? 0) - (avg(a) ?? 0));
+  return [...liste].sort((a, b) => b.einsaetze.size - a.einsaetze.size || prod(b) - prod(a));
 }
 
-// ---- Top 3: beste Kombination ohne doppelte Personen ----------
-// Punkte: bewährte Einträge (ab MIN_EINSAETZE Noten) zählen immer vor
-// unsicheren; innerhalb davon zählt die Ø Note. Nur aktive Personen.
-const punkte = t => avg(t) == null ? -Infinity : avg(t) + (t.bewertet.size >= MIN_EINSAETZE ? 100 : 0);
+// ---- Top 3 ------------------------------------------------------
+// Punkte pro Eintrag (0–1): Mischung aus Häufigkeit und Toren/Skorerpunkten,
+// jeweils relativ zum besten Eintrag der Liste.
+//   art 'mix' = 50 % Häufigkeit + 50 % Tore/Punkte, 'haeufig' = nur Häufigkeit, 'tore' = nur Tore/Punkte
+export function bewerter(liste, art = 'mix') {
+  const maxH = Math.max(1, ...liste.map(t => t.einsaetze.size));
+  const maxP = Math.max(0, ...liste.map(prod));
+  return t => {
+    const h = t.einsaetze.size / maxH, p = maxP ? prod(t) / maxP : 0;
+    if (art === 'haeufig') return h + p * 0.001;            // Gleichstand: Tore entscheiden
+    if (art === 'tore') return maxP ? p + h * 0.001 : h;   // ohne Statistik: Häufigkeit
+    return maxP ? (h + p) / 2 : h;
+  };
+}
 const frei = (ids, belegt) => ids.every(x => !belegt.has(x));
 
 // beste k sich nicht überschneidende Einträge (max. Punktesumme)
-function besteDisjunkte(kand, k, N = 25) {
-  const top = kand.filter(t => avg(t) != null).sort((a, b) => punkte(b) - punkte(a)).slice(0, N);
+function besteDisjunkte(kand, k, wert, N = 25) {
+  const top = [...kand].sort((a, b) => wert(b) - wert(a)).slice(0, N);
   let best = [], bestP = -Infinity;
   const such = (start, wahl, belegt, summe) => {
     if (wahl.length > best.length || (wahl.length === best.length && summe > bestP)) { best = [...wahl]; bestP = summe; }
@@ -219,21 +224,24 @@ function besteDisjunkte(kand, k, N = 25) {
       const t = top[i];
       if (!frei(t.ids, belegt)) continue;
       t.ids.forEach(x => belegt.add(x));
-      such(i + 1, [...wahl, t], belegt, summe + punkte(t));
+      such(i + 1, [...wahl, t], belegt, summe + wert(t));
       t.ids.forEach(x => belegt.delete(x));
     }
   };
   such(0, [], new Set(), 0);
-  return best.sort((a, b) => punkte(b) - punkte(a));
+  return best.sort((a, b) => wert(b) - wert(a));
 }
 
-export function topDrei(R, aktiv) {
+export function topDrei(R, aktiv, art = 'mix') {
   const nurAktiv = l => l.filter(t => t.ids.every(x => aktiv.has(x)));
   // 1) bewährte Linien
-  const linien = besteDisjunkte(nurAktiv(R.linien), 3);
+  const lin = nurAktiv(R.linien);
+  const linien = besteDisjunkte(lin, 3, bewerter(lin, art));
   // 2) Baukasten: 3 Paare + 3 Trios, alle ohne Überschneidung
-  const paare = nurAktiv(R.vPaare).filter(t => avg(t) != null).sort((a, b) => punkte(b) - punkte(a)).slice(0, 15);
-  const trios = nurAktiv(R.sTrios).filter(t => avg(t) != null).sort((a, b) => punkte(b) - punkte(a)).slice(0, 15);
+  const pAlle = nurAktiv(R.vPaare), tAlle = nurAktiv(R.sTrios);
+  const wP = bewerter(pAlle, art), wT = bewerter(tAlle, art);
+  const paare = [...pAlle].sort((a, b) => wP(b) - wP(a)).slice(0, 15);
+  const trios = [...tAlle].sort((a, b) => wT(b) - wT(a)).slice(0, 15);
   // alle überschneidungsfreien Auswahlen mit 1–k Einträgen
   const sets = (liste, k) => { const out = []; const such = (i, w, b) => {
     if (w.length) out.push([...w]);
@@ -241,7 +249,6 @@ export function topDrei(R, aktiv) {
     for (let j = i; j < liste.length; j++) { if (!frei(liste[j].ids, b)) continue;
       liste[j].ids.forEach(x => b.add(x)); such(j + 1, [...w, liste[j]], b); liste[j].ids.forEach(x => b.delete(x)); }
   }; such(0, [], new Set()); return out; };
-  const summe = l => l.reduce((a, x) => a + punkte(x), 0);
   const pSets = sets(paare, 3), tSets = sets(trios, 3);
   let best = null, bestP = -Infinity;
   for (const ps of pSets) {
@@ -249,16 +256,17 @@ export function topDrei(R, aktiv) {
     for (const ts of tSets) {
       // gleich viele Paare wie Trios (= Anzahl Linien), niemand doppelt
       if (ts.length !== ps.length || !ts.every(t => frei(t.ids, belegt))) continue;
-      const p = ps.length * 1000 + summe(ps) + summe(ts);
+      const p = ps.length * 1000 + ps.reduce((a, x) => a + wP(x), 0) + ts.reduce((a, x) => a + wT(x), 0);
       if (p > bestP) { bestP = p; best = { ps, ts }; }
     }
   }
   let bau = [];
   if (best) {
-    // Paare den Trios zuordnen: bekannte gute Kombis (Paar × Trio) bevorzugen
+    // Paare den Trios zuordnen: Kombis, die schon zusammen gespielt haben, bevorzugen
     const pt = new Map(R.paarTrio.map(t => [t.key, t]));
+    const wPT = bewerter(R.paarTrio, art);
     const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(r => [x, ...r]));
-    const wert = (p, t) => { const k = pt.get(p.key + '#' + t.key); return k && avg(k) != null ? avg(k) : (avg(p) + avg(t)) / 2 - 0.25; };
+    const wert = (p, t) => { const k = pt.get(p.key + '#' + t.key); return (k ? 1 + wPT(k) : 0) + (wP(p) + wT(t)) / 2; };
     let bp = null, bw = -Infinity;
     for (const perm of perms(best.ts)) {
       const w = best.ps.reduce((a, p, i) => a + wert(p, perm[i]), 0);
@@ -292,21 +300,19 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
     ].filter(Boolean);
     return teile.length ? `<div class="aw-stat">${teile.join(' · ')}</div>` : '';
   };
+  const wieOft = t => [t.training.size ? `🏋️ ${t.training.size}` : '', t.match.size ? `🏆 ${t.match.size}` : ''].filter(Boolean).join(' · ');
 
-  function zeile(t, titel, { extra = '' } = {}) {
-    const a = avg(t), ok = t.bewertet.size >= MIN_EINSAETZE;
-    const tm = [t.tr.length ? `🏋️ ${schnitt(t.tr).toFixed(1)}` : '', t.ma.length ? `🏆 ${schnitt(t.ma).toFixed(1)}` : ''].filter(Boolean).join(' · ');
-    return `<li class="aw-zeile ${ok ? '' : 'wenig'}">
+  // Rechts: Häufigkeit gross; bei Sortierung „Tore“ die Tore
+  function zeile(t, titel, { extra = '', rechts = null } = {}) {
+    const r = rechts ?? (E.sort === 'tore' ? { wert: t.tf, text: t.tf === 1 ? 'Tor' : 'Tore' } : { wert: `${t.einsaetze.size}×`, text: 'zusammen' });
+    return `<li class="aw-zeile">
       <div class="aw-haupt">
         <div class="aw-namen">${titel}</div>
         ${statInfo(t)}
-        <div class="aw-info">${t.einsaetze.size}× zusammen${t.n ? ` · ${t.bewertet.size} bewertet` : ' · noch keine Note'}${tm ? ` · ${tm}` : ''}${!ok && t.n ? ` · <i>zu wenig Noten für Top-Liste (ab ${MIN_EINSAETZE})</i>` : ''}</div>
+        <div class="aw-info">${t.einsaetze.size}× zusammen${wieOft(t) ? ` (${wieOft(t)})` : ''}</div>
         ${extra}
       </div>
-      <div class="aw-wert">
-        <span class="aw-note">${a == null ? '–' : a.toFixed(1)}</span>
-        <span class="aw-bar"><i style="width:${a == null ? 0 : Math.round((a / 6) * 100)}%"></i></span>
-      </div>
+      <div class="aw-wert"><span class="aw-note">${r.wert}</span><small class="aw-einh">${r.text}</small></div>
     </li>`;
   }
 
@@ -330,12 +336,13 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
   function zeichne() {
     const R = berechne(baum, E);
     const seg = (cls, key, opts) => `<div class="seg ${cls}">${opts.map(([v, t]) => `<button data-v="${v}" class="${E[key] === v ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+    const keineStat = !R.mitStat ? `<p class="aw-hinweis">ℹ️ Noch keine Match-Statistik erfasst – Tore und Skorerpunkte kommen aus dem Statistik-Tool. Bis dahin zählt nur die Häufigkeit.</p>` : '';
 
     let inhalt = '';
     if (E.bereich === 'linien') {
-      inhalt = block('linien', E.sort === 'note' ? '⭐ Top-Linien' : E.sort === 'tore' ? '⚽ Torgefährlichste Linien' : '🔁 Stamm-Linien',
+      inhalt = block('linien', E.sort === 'tore' ? '⚽ Torgefährlichste Linien' : '🔁 Stamm-Linien',
         `Ähnliche Linien (mind. 4 von 5 gleich) werden zusammengefasst – Abweichungen stehen als Hinweis dabei.
-         ${E.sort === 'note' ? `In der Rangliste ab ${MIN_EINSAETZE} bewerteten Einsätzen.` : E.sort === 'tore' ? 'Sortiert nach Toren aus der Match-Statistik.' : 'Sortiert nach Häufigkeit.'}`,
+         ${E.sort === 'tore' ? 'Sortiert nach Toren aus der Match-Statistik.' : 'Sortiert nach Häufigkeit.'}`,
         R.linien, t => zeile(t, namen(t.ids, t.rollen), {
           extra: t.varianten.length ? `<div class="aw-var">↔ Varianten: ${t.varianten.map(v => {
             const p = v.plus.map(name).join(', '), m = v.minus.map(name).join(', ');
@@ -349,35 +356,36 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
         + block('pt', '🧩 Verteidigerpaar + Sturmtrio', '', R.paarTrio, t => zeile(t,
           `<span class="aw-gruppe">${namen(t.paar)}</span><span class="aw-plus">+</span><span class="aw-gruppe">${namen(t.trio)}</span>`), ZEIGE_PAARE);
     } else if (E.bereich === 'top3') {
-      const T3 = topDrei(E.spezial ? berechne(baum, { ...E, spezial: false }) : R, aktiv);   // Top 3: nur echte Linien, ohne PP/BP
-      const unsicher = t => t.bewertet.size < MIN_EINSAETZE;
-      const hinweisU = l => l.some(unsicher) ? `<p class="aw-hinweis">⚠️ Noch nicht genug Noten (ab ${MIN_EINSAETZE} bewerteten Einsätzen) – Vorschlag ist vorläufig.</p>` : '';
+      const R3 = E.spezial ? berechne(baum, { ...E, spezial: false }) : R;   // Top 3: nur echte Linien, ohne PP/BP
+      const T3 = topDrei(R3, aktiv, E.top);
       const rang = i => `<span class="aw-rang">Linie ${i + 1}</span>`;
-      const kurzNote = t => `Ø ${avg(t).toFixed(1)} <small>(${t.bewertet.size}× bewertet)</small>`;
-      inhalt = `<section class="aw-block">
+      const erkl = { mix: 'je zur Hälfte aus Häufigkeit und Toren + Skorerpunkten', haeufig: 'nach Häufigkeit', tore: 'nach Toren + Skorerpunkten' }[E.top];
+      const kurzInfo = t => `${t.einsaetze.size}×${t.tf || t.pkt ? ` · ⚽ ${t.tf} · 🎯 ${t.pkt}` : ''}`;
+      inhalt = `
+        ${seg('aw-top', 'top', [['mix', '⚖️ Gesamt'], ['haeufig', '🔁 Häufigkeit'], ['tore', '⚽ Tore/Punkte']])}
+        ${E.top !== 'haeufig' ? keineStat : ''}
+        <section class="aw-block">
           <h3 class="gruppe">🏆 Beste 3 bewährte Linien</h3>
-          <p class="muted klein aw-erkl">Aus den Stamm-Linien die 3 mit der besten Ø Note – niemand kommt doppelt vor, nur aktive Spieler:innen.</p>
-          ${T3.linien.length ? `<ul class="aw-liste">${T3.linien.map((t, i) => zeile(t, rang(i) + namen(t.ids, t.rollen))).join('')}</ul>${hinweisU(T3.linien)}`
-            : '<p class="muted klein aw-leer">Noch keine bewerteten Linien.</p>'}
+          <p class="muted klein aw-erkl">Aus den Stamm-Linien, ${erkl} – niemand kommt doppelt vor, nur aktive Spieler:innen.</p>
+          ${T3.linien.length ? `<ul class="aw-liste">${T3.linien.map((t, i) => zeile(t, rang(i) + namen(t.ids, t.rollen),
+            { rechts: { wert: `${t.einsaetze.size}×`, text: 'zusammen' } })).join('')}</ul>`
+            : '<p class="muted klein aw-leer">Noch keine Linien erfasst.</p>'}
           ${T3.linien.length && T3.linien.length < 3 ? '<p class="aw-hinweis">Mehr Linien ohne Überschneidung gibt es noch nicht.</p>' : ''}
         </section>
         <section class="aw-block">
           <h3 class="gruppe">🧩 Baukasten: beste Paare + Trios</h3>
-          <p class="muted klein aw-erkl">Die 3 besten Verteidigerpaare und die 3 besten Sturmtrios ohne Überschneidung, so kombiniert, dass Paar und Trio möglichst gut zusammenpassen.</p>
+          <p class="muted klein aw-erkl">Die 3 besten Verteidigerpaare und die 3 besten Sturmtrios (${erkl}) ohne Überschneidung – Kombinationen, die schon zusammen gespielt haben, werden bevorzugt.</p>
           ${T3.bau.length ? `<ul class="aw-liste">${T3.bau.map((b, i) => {
             const z = b.zusammen;
-            const est = z && avg(z) != null ? avg(z) : (avg(b.paar) + avg(b.trio)) / 2;
-            return `<li class="aw-zeile ${unsicher(b.paar) || unsicher(b.trio) ? 'wenig' : ''}">
+            return `<li class="aw-zeile">
               <div class="aw-haupt">
                 <div class="aw-namen">${rang(i)}<span class="aw-gruppe">${namen(b.paar.ids)}</span><span class="aw-plus">+</span><span class="aw-gruppe">${namen(b.trio.ids)}</span></div>
-                <div class="aw-info">🛡️ Paar ${kurzNote(b.paar)} · ⚡ Trio ${kurzNote(b.trio)}</div>
-                <div class="${z ? 'aw-zus' : 'aw-var'}">${z ? `✔ So schon ${z.einsaetze.size}× zusammen gespielt${avg(z) != null ? ` · Ø ${avg(z).toFixed(1)}` : ''}` : '✦ In dieser Kombination noch nie zusammen – zum Ausprobieren'}</div>
+                <div class="aw-info">🛡️ Paar ${kurzInfo(b.paar)} · ⚡ Trio ${kurzInfo(b.trio)}</div>
+                <div class="${z ? 'aw-zus' : 'aw-var'}">${z ? `✔ So schon ${z.einsaetze.size}× zusammen gespielt${z.tf ? ` · ⚽ ${z.tf}` : ''}` : '✦ In dieser Kombination noch nie zusammen – zum Ausprobieren'}</div>
               </div>
-              <div class="aw-wert"><span class="aw-note">${z && avg(z) != null ? '' : '≈'}${est.toFixed(1)}</span>
-                <span class="aw-bar"><i style="width:${Math.round((est / 6) * 100)}%"></i></span></div>
+              <div class="aw-wert"><span class="aw-note">${z ? `${z.einsaetze.size}×` : 'neu'}</span><small class="aw-einh">${z ? 'zusammen' : 'Kombi'}</small></div>
             </li>`;
-          }).join('')}</ul>${hinweisU(T3.bau.flatMap(b => [b.paar, b.trio]))}`
-            : '<p class="muted klein aw-leer">Noch keine bewerteten Paare und Trios.</p>'}
+          }).join('')}</ul>` : '<p class="muted klein aw-leer">Noch keine Paare und Trios erfasst.</p>'}
         </section>`;
     } else {
       const T = R.team;
@@ -395,21 +403,22 @@ export function zeichneAuswertung(ziel, baum, { kMap, kurz, personen }) {
     ziel.innerHTML = `
       <div class="aw-steuer">
         ${seg('aw-bereich', 'bereich', [['linien', 'Linien'], ['top3', '🏆 Top 3'], ['paare', 'Paare/Trios'], ['spezial', 'PP / BP']])}
-        ${E.bereich === 'top3' ? '' : seg('aw-sort', 'sort', [['note', '⭐ Ø Note'], ['tore', '⚽ Tore'], ['haeufig', '🔁 Häufigkeit']])}
+        ${E.bereich === 'top3' ? '' : seg('aw-sort', 'sort', [['haeufig', '🔁 Häufigkeit'], ['tore', '⚽ Tore']])}
         <div class="aw-filter">
-          <label>Gewichtung<select class="aw-modus">
-            ${[['match2', 'Match zählt doppelt'], ['gleich', 'Alles gleich'], ['match', 'Nur Matches'], ['training', 'Nur Trainings']]
+          <label>Einsätze<select class="aw-modus">
+            ${[['alle', 'Alle Einsätze'], ['match', 'Nur Matches & Testspiele'], ['training', 'Nur Trainings']]
               .map(([v, t]) => `<option value="${v}" ${E.modus === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
           <label ${E.bereich === 'top3' ? 'hidden' : ''}>Person<select class="aw-person"><option value="">Alle</option>
             ${personen.map(k => `<option value="${k.id}" ${E.person === k.id ? 'selected' : ''}>${k.nummer != null ? k.nummer + ' ' : ''}${esc(k.name)}</option>`).join('')}</select></label>
         </div>
         ${E.bereich === 'paare' ? `<label class="aw-check"><input type="checkbox" class="aw-spezial" ${E.spezial ? 'checked' : ''}> Powerplay & Boxplay mitzählen</label>` : ''}
       </div>
-      <p class="summary muted">${R.anzahlEinsaetze} Einsätze · ${R.bewertet} bewertete Linien/Formationen${E.modus === 'match2' ? ' · Matches zählen doppelt' : ''}</p>
+      <p class="summary muted">${R.anzahlEinsaetze} Einsätze${R.mitStat ? ` · ${R.mitStat} mit Match-Statistik` : ''}</p>
       ${R.anzahlEinsaetze ? inhalt : '<p class="muted pad leer">Noch keine Einsätze mit eingeteilten Personen.</p>'}`;
 
     ziel.querySelector('.aw-bereich').onclick = e => { const b = e.target.closest('button'); if (b) { E.bereich = b.dataset.v; zeichne(); } };
     ziel.querySelector('.aw-sort')?.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { E.sort = b.dataset.v; zeichne(); } });
+    ziel.querySelector('.aw-top')?.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { E.top = b.dataset.v; zeichne(); } });
     ziel.querySelector('.aw-modus').onchange = e => { E.modus = e.target.value; zeichne(); };
     ziel.querySelector('.aw-person').onchange = e => { E.person = e.target.value; zeichne(); };
     ziel.querySelector('.aw-spezial')?.addEventListener('change', e => { E.spezial = e.target.checked; zeichne(); });

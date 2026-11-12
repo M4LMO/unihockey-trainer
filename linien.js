@@ -1,10 +1,11 @@
 // ============================================================
 //  Tool: Linien – Linien, Powerplay, Boxplay pro Training/Match
-//  erfassen, bewerten (Schulnoten 1–6) und nachschauen.
+//  erfassen und nachschauen (Bewertung/Chemie ausgebaut 12.11.;
+//  Spalten note/notiz und Tabelle chemie bleiben in der DB unbenutzt).
 //
 //  Ansichten (Hash):
-//    #/linien            Übersicht (Tabs: Einsätze / Personen / Chemie / Auswertung)
-//    #/linien/e/<id>     ein Einsatz (Aufstellen / Screenshot / Bewerten)
+//    #/linien            Übersicht (Tabs: Einsätze / Personen / Auswertung)
+//    #/linien/e/<id>     ein Einsatz (Aufstellen; Screenshot-Modus ausgebaut 12.11.)
 //    #/linien/p/<id>     Historie einer Person
 // ============================================================
 import { sb } from './supabase.js';
@@ -35,7 +36,7 @@ const SYSTEME = {
 const ROLLEN = { V: 'Verteidigung', S: 'Sturm', flex: 'flexibel' };
 const WETTBEWERB = { meisterschaft: 'Meisterschaft', cup: 'Cup', test: 'Testspiel' };
 const ORT = { heim: 'Heim', auswaerts: 'Auswärts' };
-const TABS = ['einsaetze', 'personen', 'chemie', 'auswertung'];
+const TABS = ['einsaetze', 'personen', 'auswertung'];
 
 // ---- kleine Helfer ---------------------------------------------
 const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -49,8 +50,6 @@ const heute = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-const noteText = n => n == null ? '–' : (Number(n) % 1 ? Number(n).toFixed(1) : String(Number(n)));
-const schnitt = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
 const formLabel = l => `${ARTEN[l.art].kurz} ${l.nr}`;
 const istFeld = k => k.rolle === 'spieler' && k.position !== 'Goalie';
 // Testspiel = Match mit Wettbewerb 'test' (gleich wie im Statistik-Tool)
@@ -157,14 +156,13 @@ export async function mount(root) {
   dlg.addEventListener('close', () => { if (wartet) { wartet = false; spaeter(); } });
 
   const kanal = sb.channel('linien-live');
-  for (const table of ['einsaetze', 'varianten', 'linien', 'linien_spieler', 'chemie', 'kader'])
+  for (const table of ['einsaetze', 'varianten', 'linien', 'linien_spieler', 'kader'])
     kanal.on('postgres_changes', { event: '*', schema: 'public', table }, spaeter);
   kanal.subscribe();
 
   const aufraeumen = () => {
     clearTimeout(timer);
     sb.removeChannel(kanal);
-    document.body.classList.remove('ln-fokus');
     if (dlg.open) dlg.close();
   };
 
@@ -224,7 +222,6 @@ export async function mount(root) {
         <div class="seg ln-tabs">
           <button data-t="einsaetze" class="${tab === 'einsaetze' ? 'on' : ''}">Einsätze</button>
           <button data-t="personen" class="${tab === 'personen' ? 'on' : ''}">Personen</button>
-          <button data-t="chemie" class="${tab === 'chemie' ? 'on' : ''}">Chemie</button>
           <button data-t="auswertung" class="${tab === 'auswertung' ? 'on' : ''}">Auswertung</button>
         </div>
         <div class="ln-tab"><p class="muted pad">Lade …</p></div>`;
@@ -239,15 +236,14 @@ export async function mount(root) {
       fab.hidden = nurLesen() || tab === 'personen' || tab === 'auswertung';
       if (tab === 'einsaetze') await tabEinsaetze(ziel, fab);
       else if (tab === 'personen') await tabPersonen(ziel);
-      else if (tab === 'auswertung') zeichneAuswertung(ziel, await ladeBaum(S.liste.id),
+      else zeichneAuswertung(ziel, await ladeBaum(S.liste.id),
         { kMap: S.kMap, kurz: S.kurz, personen: S.kader.filter(istFeld) });
-      else await tabChemie(ziel, fab);
     }
 
     // ---- Tab Einsätze -------------------------------------------
     async function tabEinsaetze(ziel, fab) {
       einsaetze = await db(sb.from('einsaetze')
-        .select('*, varianten(id, nr, name, linien(id, art, note))')
+        .select('*, varianten(id, nr, name)')
         .eq('liste_id', S.liste.id).order('datum', { ascending: false }));
       einsaetze.sort((a, b) => b.datum.localeCompare(a.datum) || b.erstellt_am.localeCompare(a.erstellt_am));
       fab.onclick = () => einsatzDialog(null, einsaetze);
@@ -255,8 +251,6 @@ export async function mount(root) {
       const zeigen = () => {
         const liste = einsaetze.filter(e => filter === 'alle' || artVon(e) === filter);
         ziel.querySelector('.ln-liste').innerHTML = liste.length ? liste.map(e => {
-          const noten = e.varianten.flatMap(v => v.linien).filter(l => l.art === 'linie' && l.note != null).map(l => Number(l.note));
-          const s = schnitt(noten);
           const info = [datumText(e.datum), e.varianten.length > 1 ? `${e.varianten.length} Versionen` : null,
             e.typ === 'match' && e.wettbewerb && !istTest(e) ? WETTBEWERB[e.wettbewerb] : null,
             e.typ === 'match' && e.ort ? ORT[e.ort] : null].filter(Boolean).join(' · ');
@@ -264,7 +258,6 @@ export async function mount(root) {
             <span class="nr ln-typ ${artVon(e)}">${typIcon(e)}</span>
             <span class="info"><strong>${esc(e.titel || typText(e))}${e.resultat ? ` <span class="ln-res">${esc(e.resultat)}</span>` : ''}</strong>
               <small>${esc(info)}</small></span>
-            <span class="ln-schnitt ${s == null ? 'leer' : ''}" title="Ø Note Linien">${s == null ? '–' : s.toFixed(1)}</span>
           </a>`;
         }).join('') : `<p class="muted pad leer">${einsaetze.length ? 'Keine Einträge für diesen Filter.'
           : nurLesen() ? 'Keine Einsätze erfasst.' : 'Noch keine Einsätze.<br>Tippe auf <b>＋</b> für das erste Training oder den ersten Match.'}</p>`;
@@ -292,9 +285,8 @@ export async function mount(root) {
       const stat = new Map();
       for (const e of baum) for (const v of e.varianten) for (const l of v.linien) for (const r of l.linien_spieler) {
         if (!r.kader_id) continue;
-        const s = stat.get(r.kader_id) || { einsaetze: new Set(), noten: [] };
+        const s = stat.get(r.kader_id) || { einsaetze: new Set() };
         s.einsaetze.add(e.id);
-        if (l.art === 'linie' && l.note != null) s.noten.push(Number(l.note));
         stat.set(r.kader_id, s);
       }
       const personen = S.kader.filter(istFeld).sort((a, b) => (b.aktiv - a.aktiv) || (a.nummer ?? 999) - (b.nummer ?? 999) || a.name.localeCompare(b.name, 'de'));
@@ -302,72 +294,13 @@ export async function mount(root) {
       ziel.innerHTML = personen.length ? `
         <p class="summary muted">Tippe auf eine Person für ihre Linien-Historie.</p>
         <ul class="karten">${personen.map(k => {
-          const s = stat.get(k.id); const d = s ? schnitt(s.noten) : null;
+          const s = stat.get(k.id);
           return `<li><a class="karte ${k.aktiv ? '' : 'ln-inaktiv'}" href="#/linien/p/${k.id}">
             <span class="nr">${k.nummer ?? '–'}</span>
             <span class="info"><strong>${esc(k.name)}${auchNr(andere.get(k.id))}</strong>
-              <small>${s ? plural(s.einsaetze.size, 'Einsatz', 'Einsätze') : 'noch keine Einsätze'}${d != null ? ` · Ø ${d.toFixed(1)}` : ''}${k.aktiv ? '' : ' · inaktiv'}</small></span>
+              <small>${s ? plural(s.einsaetze.size, 'Einsatz', 'Einsätze') : 'noch keine Einsätze'}${k.aktiv ? '' : ' · inaktiv'}</small></span>
           </a></li>`;
         }).join('')}</ul>` : '<p class="muted pad leer">Keine Feldspieler:innen im Kader.</p>';
-    }
-
-    // ---- Tab Chemie ---------------------------------------------
-    async function tabChemie(ziel, fab) {
-      const daten = await db(sb.from('chemie').select('*').eq('liste_id', S.liste.id));
-      daten.sort((a, b) => b.erstellt_am.localeCompare(a.erstellt_am));
-      fab.onclick = () => chemieDialog(null);
-      ziel.innerHTML = `
-        <p class="summary muted">Wer funktioniert zusammen – und wer nicht?</p>
-        ${daten.length ? `<ul class="ln-chemie">${daten.map(c => `
-          <li><button class="karte" data-id="${c.id}" ${nurLesen() ? 'disabled' : ''}>
-            <span class="nr ln-wertung ${c.wertung}">${c.wertung === 'gut' ? '👍' : '👎'}</span>
-            <span class="info"><strong>${esc(S.kMap.get(c.kader_a)?.name ?? '?')} + ${esc(S.kMap.get(c.kader_b)?.name ?? '?')}</strong>
-              <small>${esc(c.notiz || '–')}</small></span>
-          </button></li>`).join('')}</ul>`
-          : `<p class="muted pad leer">Noch keine Chemie-Notizen.${nurLesen() ? '' : '<br>Tippe auf <b>＋</b>.'}</p>`}`;
-      ziel.querySelector('.ln-chemie')?.addEventListener('click', e => {
-        const b = e.target.closest('.karte'); if (!b) return;
-        chemieDialog(daten.find(c => c.id === b.dataset.id));
-      });
-    }
-
-    function chemieDialog(c) {
-      const personen = S.kader.filter(k => istFeld(k) && (k.aktiv || k.id === c?.kader_a || k.id === c?.kader_b));
-      const opts = sel => `<option value="">– wählen –</option>` + personen.map(k =>
-        `<option value="${k.id}" ${k.id === sel ? 'selected' : ''}>${k.nummer != null ? `#${k.nummer} ` : ''}${esc(k.name)}</option>`).join('');
-      oeffneDialog(`
-        <h2>${c ? 'Chemie bearbeiten' : 'Neue Chemie-Notiz'}</h2>
-        <label>Person A<select name="a">${opts(c?.kader_a)}</select></label>
-        <label>Person B<select name="b">${opts(c?.kader_b)}</select></label>
-        <div class="seg ln-wert"><button data-w="gut" class="${c?.wertung !== 'schlecht' ? 'on' : ''}">👍 funktioniert</button><button data-w="schlecht" class="${c?.wertung === 'schlecht' ? 'on' : ''}">👎 funktioniert nicht</button></div>
-        <label>Notiz<textarea name="notiz" rows="3" placeholder="z.B. verstehen sich blind im Konter">${esc(c?.notiz || '')}</textarea></label>
-        <p class="error" hidden></p>
-        <div class="dlg-actions">
-          ${c ? '<button class="btn danger btn-del">Löschen</button><span style="flex:1"></span>' : ''}
-          <button class="btn ghost btn-zu">Abbrechen</button>
-          <button class="btn primary btn-ok">Speichern</button>
-        </div>`, d => {
-        let wertung = c?.wertung || 'gut';
-        d.querySelector('.ln-wert').onclick = e => {
-          const b = e.target.closest('button'); if (!b) return;
-          wertung = b.dataset.w; d.querySelectorAll('.ln-wert button').forEach(x => x.classList.toggle('on', x === b));
-        };
-        d.querySelector('.btn-zu').onclick = schliesse;
-        d.querySelector('.btn-del')?.addEventListener('click', async () => {
-          if (!confirm('Chemie-Notiz löschen?')) return;
-          await db(sb.from('chemie').delete().eq('id', c.id), 'Gelöscht');
-          schliesse(); neuLaden();
-        });
-        d.querySelector('.btn-ok').onclick = async () => {
-          const a = d.querySelector('[name=a]').value, b = d.querySelector('[name=b]').value;
-          const err = d.querySelector('.error');
-          if (!a || !b || a === b) { err.textContent = 'Bitte zwei verschiedene Personen wählen.'; err.hidden = false; return; }
-          const daten = { kader_a: a, kader_b: b, wertung, notiz: d.querySelector('[name=notiz]').value.trim() || null };
-          if (c) await db(sb.from('chemie').update(daten).eq('id', c.id), 'Gespeichert');
-          else await db(sb.from('chemie').insert({ ...daten, liste_id: S.liste.id }), 'Gespeichert');
-          schliesse(); neuLaden();
-        };
-      });
     }
 
     await ladeBasis();
@@ -409,7 +342,7 @@ export async function mount(root) {
         <div class="ln-vsuche" hidden>
           <input type="search" class="ln-vsuch" placeholder="Suchen: Datum, Gegner, Titel …" autocomplete="off">
           <ul class="ln-vtreffer"></ul>
-          <p class="muted klein">Übernommen werden Linien, Powerplay & Boxplay mit allen aktiven Personen – ohne Noten.</p>
+          <p class="muted klein">Übernommen werden Linien, Powerplay & Boxplay mit allen aktiven Personen.</p>
         </div></div>`}
       <p class="error ln-v-err" hidden></p>
       <div class="dlg-actions">
@@ -451,7 +384,7 @@ export async function mount(root) {
       d.querySelector('.ln-etyp').onclick = ev => { const b = ev.target.closest('button'); if (b) setTyp(b.dataset.t); };
       d.querySelector('.btn-zu').onclick = schliesse;
       d.querySelector('.btn-del')?.addEventListener('click', async () => {
-        if (!confirm('Diesen Einsatz mit allen Versionen, Linien und Noten löschen?')) return;
+        if (!confirm('Diesen Einsatz mit allen Versionen und Linien löschen?')) return;
         await db(sb.from('einsaetze').delete().eq('id', e.id), 'Einsatz gelöscht');
         schliesse(); location.hash = '#/linien';
       });
@@ -506,7 +439,7 @@ export async function mount(root) {
   //  EINSATZ
   // ==============================================================
   async function zeigeEinsatz(id) {
-    let E = null, V = [], aktivVar = null, modus = 'edit';
+    let E = null, V = [], aktivVar = null;
 
     async function lade() {
       const e = await db(sb.from('einsaetze').select('*, match_ereignisse(id), match_aufstellung(kader_id, nummer)').eq('id', id));
@@ -523,8 +456,6 @@ export async function mount(root) {
     const variante = () => V.find(v => v.id === aktivVar);
 
     function zeichne() {
-      document.body.classList.toggle('ln-fokus', modus === 'shot');
-      if (modus === 'shot') return zeichneScreenshot();
       const ro = nurLesen();
       const info = [datumText(E.datum), typText(E), E.typ === 'match' && E.wettbewerb && !istTest(E) ? WETTBEWERB[E.wettbewerb] : null,
         E.typ === 'match' && E.ort ? ORT[E.ort] : null, teamLabel(team())].filter(Boolean).join(' · ');
@@ -544,11 +475,6 @@ export async function mount(root) {
           ${V.map(v => `<button class="chip ${v.id === aktivVar ? 'on' : ''}" data-v="${v.id}">${esc(v.name ? `${v.nr} · ${v.name}` : `Version ${v.nr}`)}</button>`).join('')}
           ${ro ? '' : `${V.length ? '<button class="chip ln-v-mehr" title="Version bearbeiten">⋯</button>' : ''}<button class="chip ln-v-neu">＋ Version</button>`}
         </div>
-        ${V.length ? `<div class="seg ln-modus">
-          <button data-m="edit" class="${modus === 'edit' ? 'on' : ''}">✏️ Aufstellen</button>
-          <button data-m="shot">📸 Screenshot</button>
-          <button data-m="rate" class="${modus === 'rate' ? 'on' : ''}">⭐ Bewerten</button>
-        </div>` : ''}
         <div class="ln-body"></div>`;
 
       box.querySelector('.ln-e-edit')?.addEventListener('click', () => einsatzDialog(E));
@@ -558,18 +484,13 @@ export async function mount(root) {
         if (b.classList.contains('ln-v-mehr')) return versionDialog(variante());
         aktivVar = b.dataset.v; zeichne();
       };
-      box.querySelector('.ln-modus')?.addEventListener('click', ev => {
-        const b = ev.target.closest('button'); if (!b) return;
-        modus = b.dataset.m; zeichne(); window.scrollTo(0, 0);
-      });
 
       const body = box.querySelector('.ln-body');
       if (!V.length) {
         body.innerHTML = `<p class="muted pad leer">Dieser Einsatz hat keine Version.${ro ? '' : '<br>Tippe auf <b>＋ Version</b>.'}</p>`;
         return;
       }
-      if (modus === 'rate') zeichneBewerten(body, ro);
-      else zeichneAufstellen(body, ro);
+      zeichneAufstellen(body, ro);
     }
 
     // Wo steht eine Person sonst noch in dieser Version?
@@ -581,7 +502,7 @@ export async function mount(root) {
     const nrVon = kid => E?.match_aufstellung?.find(a => a.kader_id === kid)?.nummer ?? S.kMap.get(kid)?.nummer ?? null;
 
     // ---- Spielfeld einer Formation -------------------------------
-    function feldHTML(l, v, { klickbar = true, gross = false } = {}) {
+    function feldHTML(l, v, { klickbar = true } = {}) {
       const sys = SYSTEME[l.system] || SYSTEME[ARTEN[l.art].systeme[0]];
       const posten = sys.posten.map(([p, x, y, rolle]) => {
         const r = l.linien_spieler.find(s => s.posten === p);
@@ -590,17 +511,17 @@ export async function mount(root) {
         return `<button class="ln-post rolle-${rolle} ${r ? 'voll' : 'leer'}" style="left:${x}%;top:${y}%"
             data-l="${l.id}" data-p="${p}" ${klickbar ? '' : 'disabled tabindex="-1"'} title="${esc(p)}">
           <span class="ln-kreis">${r ? esc(r.kader_id ? (nrVon(r.kader_id) ?? '–') : 'G') : esc(p)}</span>
-          <span class="ln-name">${r ? esc(gross ? nameVon(r).replace(' (Gast)', '') : kurzVon(r)) : (klickbar ? '＋' : '')}</span>
+          <span class="ln-name">${r ? esc(kurzVon(r)) : (klickbar ? '＋' : '')}</span>
           ${r ? `<span class="ln-tag">${esc(p)}</span>` : ''}
           ${doppelt ? '<span class="ln-2x" title="Steht in mehreren Linien">2×</span>' : ''}
         </button>`;
       }).join('');
       const zusatz = l.linien_spieler.filter(s => s.posten === 'Z');
-      return `<div class="ln-feld ${gross ? 'gross' : ''}"><span class="ln-tor"></span>${posten}</div>
-        ${zusatz.length || (klickbar && !gross) ? `<div class="ln-zusatz">
+      return `<div class="ln-feld"><span class="ln-tor"></span>${posten}</div>
+        ${zusatz.length || klickbar ? `<div class="ln-zusatz">
           ${zusatz.map(r => `<button class="ln-zchip rolle-${r.rolle}" data-l="${l.id}" data-z="${r.id}" ${klickbar ? '' : 'disabled'}>
-            <b>${esc(r.kader_id ? (nrVon(r.kader_id) ?? '–') : 'G')}</b> ${esc(gross ? nameVon(r).replace(' (Gast)', '') : kurzVon(r))} <small>${r.rolle === 'flex' ? 'flex' : r.rolle}</small></button>`).join('')}
-          ${klickbar && !gross ? `<button class="ln-zchip neu" data-l="${l.id}" data-z="neu">＋ Zusatz</button>` : ''}
+            <b>${esc(r.kader_id ? (nrVon(r.kader_id) ?? '–') : 'G')}</b> ${esc(kurzVon(r))} <small>${r.rolle === 'flex' ? 'flex' : r.rolle}</small></button>`).join('')}
+          ${klickbar ? `<button class="ln-zchip neu" data-l="${l.id}" data-z="neu">＋ Zusatz</button>` : ''}
         </div>` : ''}`;
     }
 
@@ -616,7 +537,6 @@ export async function mount(root) {
               <div class="ln-form-kopf">
                 <strong>${formLabel(l)}</strong>${l.name ? `<span class="ln-fname">${esc(l.name)}</span>` : ''}
                 <span style="flex:1"></span>
-                ${l.note != null ? `<span class="ln-note-klein" title="Note">${noteText(l.note)}</span>` : ''}
                 ${ARTEN[art].systeme.length > 1 && !ro ? `<select class="ln-system" data-l="${l.id}">${ARTEN[art].systeme.map(s =>
                   `<option value="${s}" ${s === l.system ? 'selected' : ''}>${SYSTEME[s].label}</option>`).join('')}</select>`
                   : `<span class="muted klein">${SYSTEME[l.system]?.label ?? ''}</span>`}
@@ -756,7 +676,7 @@ export async function mount(root) {
           schliesse(); neuLaden();
         };
         d.querySelector('.btn-del').onclick = async () => {
-          if (!confirm(`${formLabel(l)} mit Aufstellung und Note löschen?`)) return;
+          if (!confirm(`${formLabel(l)} mit Aufstellung löschen?`)) return;
           await db(sb.from('linien').delete().eq('id', l.id), `${formLabel(l)} gelöscht`);
           // Nachfolgende neu nummerieren
           for (const x of variante().linien.filter(x => x.art === l.art && x.nr > l.nr))
@@ -788,96 +708,18 @@ export async function mount(root) {
               const nr = Math.max(0, ...V.map(x => x.nr)) + 1;
               const vorlage = d.querySelector('[name=vorlage]').value;
               const neu = vorlage ? await kopiereVariante(vorlage, id, nr, name) : await neueVariante(id, nr, name);
-              aktivVar = neu.id; modus = 'edit';
+              aktivVar = neu.id;
               toast(`Version ${nr} erstellt`, 'ok');
             }
             schliesse(); neuLaden();
           } catch { btn.disabled = false; }
         };
         d.querySelector('.btn-del')?.addEventListener('click', async () => {
-          if (!confirm(`Version ${v.nr} mit allen Linien und Noten löschen?`)) return;
+          if (!confirm(`Version ${v.nr} mit allen Linien löschen?`)) return;
           await db(sb.from('varianten').delete().eq('id', v.id), 'Version gelöscht');
           aktivVar = null; schliesse(); neuLaden();
         });
       });
-    }
-
-    // ---- Modus Screenshot ---------------------------------------
-    function zeichneScreenshot() {
-      const v = variante();
-      const formen = v.linien.filter(l => l.linien_spieler.length);
-      box.innerHTML = `
-        <div class="ln-shot">
-          <button class="btn ghost small ln-shot-zu">✕ Schliessen</button>
-          <div class="ln-shot-kopf">
-            <strong>${typIcon(E)} ${esc(E.titel || typText(E))}</strong>
-            <span>${esc([datumText(E.datum), teamLabel(team()), V.length > 1 ? (v.name || `Version ${v.nr}`) : null].filter(Boolean).join(' · '))}</span>
-          </div>
-          ${ART_REIHE.map(art => {
-            const f = formen.filter(l => l.art === art); if (!f.length) return '';
-            return `<h3 class="ln-shot-titel">${ARTEN[art].titel}</h3>
-              <div class="ln-formen">${f.map(l => `<div class="ln-form">
-                <div class="ln-form-kopf"><strong>${formLabel(l)}</strong>${l.name ? `<span class="ln-fname">${esc(l.name)}</span>` : ''}<span style="flex:1"></span><span class="muted klein">${SYSTEME[l.system]?.label ?? ''}</span></div>
-                ${feldHTML(l, v, { klickbar: false, gross: true })}</div>`).join('')}</div>`;
-          }).join('') || '<p class="muted pad leer">Noch niemand eingeteilt.</p>'}
-        </div>`;
-      box.querySelector('.ln-shot-zu').onclick = () => { modus = 'edit'; zeichne(); };
-    }
-
-    // ---- Modus Bewerten -----------------------------------------
-    function zeichneBewerten(body, ro) {
-      const v = variante();
-      const formen = v.linien.filter(l => l.linien_spieler.length || l.note != null || l.notiz);
-      const hatStat = E.typ === 'match' && E.match_ereignisse?.length > 0;   // Zahlen kommen aus dem Statistik-Tool
-      const zaehler = l => E.typ === 'match' && l.art !== 'linie' && !hatStat;
-      const quote = l => {
-        if (!l.anzahl) return '';
-        const t = l.tore ?? 0;
-        return l.art === 'bp' ? `${Math.round(100 * (l.anzahl - Math.min(t, l.anzahl)) / l.anzahl)} % ohne Gegentor`
-          : `${Math.round(100 * t / l.anzahl)} % Quote`;
-      };
-      body.innerHTML = formen.length ? `
-        <p class="summary muted">Note 1–6 (6 = top). Nochmals auf die gewählte Note tippen = löschen. Alles wird sofort gespeichert.</p>
-        ${hatStat && formen.some(l => l.art !== 'linie') ? `<p class="ln-stat-hinweis">📊 Über-/Unterzahlen und Tore für PP/BP kommen aus der <a href="#/statistik/m/${E.id}">Match-Statistik</a>.</p>` : ''}
-        ${formen.map(l => `
-        <div class="ln-rate" data-id="${l.id}">
-          <div class="ln-rate-kopf"><strong>${formLabel(l)}</strong>${l.name ? `<span class="ln-fname">${esc(l.name)}</span>` : ''}
-            <span style="flex:1"></span><span class="ln-note-gross ${l.note == null ? 'leer' : ''}">${noteText(l.note)}</span></div>
-          <p class="ln-rate-namen">${l.linien_spieler.map(r => `<span><small>${r.posten === 'Z' ? '+' : esc(r.posten)}</small> ${esc(kurzVon(r))}</span>`).join('') || '<span class="muted">niemand eingeteilt</span>'}</p>
-          <div class="ln-noten">
-            ${[1, 2, 3, 4, 5, 6].map(n => `<button data-n="${n}" class="${l.note != null && Math.floor(l.note) === n ? 'on' : ''}" ${ro ? 'disabled' : ''}>${n}</button>`).join('')}
-            <button data-n="halb" class="ln-halb ${l.note != null && l.note % 1 ? 'on' : ''}" ${ro || l.note == null || Number(l.note) >= 6 ? 'disabled' : ''} title="halbe Note">½</button>
-          </div>
-          ${zaehler(l) ? `<div class="ln-zaehler">
-            <label>${l.art === 'bp' ? 'Unterzahlen' : 'Überzahlen'}<input type="number" min="0" inputmode="numeric" data-f="anzahl" value="${l.anzahl ?? ''}" ${ro ? 'disabled' : ''}></label>
-            <label>${l.art === 'bp' ? 'Gegentore' : 'Tore'}<input type="number" min="0" inputmode="numeric" data-f="tore" value="${l.tore ?? ''}" ${ro ? 'disabled' : ''}></label>
-            <span class="ln-quote">${quote(l)}</span>
-          </div>` : ''}
-          <textarea class="ln-notiz" rows="2" placeholder="Notiz: was lief gut, was nicht?" ${ro ? 'disabled' : ''}>${esc(l.notiz || '')}</textarea>
-        </div>`).join('')}` : '<p class="muted pad leer">Noch keine Linien mit Personen – zuerst aufstellen.</p>';
-
-      const speichere = async (l, daten) => {
-        try { await db(sb.from('linien').update(daten).eq('id', l.id)); Object.assign(l, daten); return true; }
-        catch { return false; }
-      };
-      body.onclick = async ev => {
-        const b = ev.target.closest('.ln-noten button'); if (!b || ro) return;
-        const l = v.linien.find(x => x.id === b.closest('.ln-rate').dataset.id);
-        let note = l.note == null ? null : Number(l.note);
-        if (b.dataset.n === 'halb') { if (note == null || note >= 6) return; note = note % 1 ? Math.floor(note) : note + 0.5; }
-        else { const n = Number(b.dataset.n); note = note != null && Math.floor(note) === n ? null : n; }
-        if (await speichere(l, { note })) { toast(note == null ? 'Note gelöscht' : `${formLabel(l)}: ${noteText(note)}`, 'ok'); zeichneBewerten(body, ro); }
-      };
-      body.onchange = async ev => {
-        const card = ev.target.closest('.ln-rate'); if (!card || ro) return;
-        const l = v.linien.find(x => x.id === card.dataset.id);
-        if (ev.target.classList.contains('ln-notiz')) {
-          if (await speichere(l, { notiz: ev.target.value.trim() || null })) toast('Notiz gespeichert', 'ok');
-        } else if (ev.target.dataset.f) {
-          const wert = ev.target.value === '' ? null : Math.max(0, parseInt(ev.target.value, 10) || 0);
-          if (await speichere(l, { [ev.target.dataset.f]: wert })) card.querySelector('.ln-quote').textContent = quote(l);
-        }
-      };
     }
 
     if (await lade()) zeichne();
@@ -902,14 +744,13 @@ export async function mount(root) {
         const andere = l.linien_spieler.filter(r => r !== ich);
         eintraege.push({ e, v, l, ich, andere, mehrVersionen: e.varianten.length > 1 });
         if (l.art === 'linie') for (const r of andere) if (r.kader_id) {
-          const s = partner.get(r.kader_id) || { n: 0, noten: [] };
-          s.n++; if (l.note != null) s.noten.push(Number(l.note));
+          const s = partner.get(r.kader_id) || { n: 0 };
+          s.n++;
           partner.set(r.kader_id, s);
         }
       }
       const einsatzIds = new Set(eintraege.map(x => x.e.id));
       const anz = t => new Set(eintraege.filter(x => x.e.typ === t).map(x => x.e.id)).size;
-      const notenL = eintraege.filter(x => x.l.art === 'linie' && x.l.note != null).map(x => Number(x.l.note));
       const zahlArt = a => eintraege.filter(x => x.l.art === a).length;
       const top = [...partner.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 6);
 
@@ -922,17 +763,15 @@ export async function mount(root) {
         <div class="ln-kacheln">
           <div><b>${einsatzIds.size}</b><small>Einsätze</small></div>
           <div><b>${anz('training')} / ${anz('match')}</b><small>Training / Match</small></div>
-          <div><b>${notenL.length ? schnitt(notenL).toFixed(1) : '–'}</b><small>Ø Note Linien</small></div>
           <div><b>${zahlArt('pp')} / ${zahlArt('bp')}</b><small>PP / BP</small></div>
         </div>
         ${top.length ? `<h3 class="gruppe">Häufigste Partner:innen (Linien)</h3>
           <ul class="ln-partner">${top.map(([id, s]) => `<li><span>${esc(S.kMap.get(id)?.name ?? '?')}</span>
-            <small class="muted">${s.n}× ${s.noten.length ? `· Ø ${schnitt(s.noten).toFixed(1)}` : ''}</small></li>`).join('')}</ul>` : ''}
+            <small class="muted">${s.n}×</small></li>`).join('')}</ul>` : ''}
         <h3 class="gruppe">Verlauf <span>${eintraege.length}</span></h3>
         ${eintraege.length ? `<ul class="ln-verlauf">${eintraege.map(x => `
           <li><a href="#/linien/e/${x.e.id}">
-            <div class="ln-v-kopf"><span>${typIcon(x.e)} <b>${esc(datumText(x.e.datum))}</b> ${esc(x.e.titel || '')}${(() => { const n = x.e.match_aufstellung?.find(a => a.kader_id === p.id)?.nummer; return n != null && n !== p.nummer ? ` <span class="nr-auch">#${n}</span>` : ''; })()}</span>
-              <span class="ln-note-klein ${x.l.note == null ? 'leer' : ''}">${noteText(x.l.note)}</span></div>
+            <div class="ln-v-kopf"><span>${typIcon(x.e)} <b>${esc(datumText(x.e.datum))}</b> ${esc(x.e.titel || '')}${(() => { const n = x.e.match_aufstellung?.find(a => a.kader_id === p.id)?.nummer; return n != null && n !== p.nummer ? ` <span class="nr-auch">#${n}</span>` : ''; })()}</span></div>
             <small>${esc(formLabel(x.l))}${x.l.name ? ` „${esc(x.l.name)}“` : ''} · ${x.ich.posten === 'Z' ? `Zusatz (${ROLLEN[x.ich.rolle]})` : esc(x.ich.posten)}${x.mehrVersionen ? ` · ${esc(x.v.name || 'Version ' + x.v.nr)}` : ''}</small>
             <small class="muted">mit ${x.andere.length ? x.andere.map(r => esc(nameVon(r))).join(', ') : 'niemandem'}</small>
           </a></li>`).join('')}</ul>` : '<p class="muted pad leer">Noch in keiner Linie eingeteilt.</p>'}`;
