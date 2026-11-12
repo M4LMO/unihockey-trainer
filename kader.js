@@ -391,14 +391,12 @@ export async function mount(root) {
       <li class="${s.archiviert ? 'archiviert' : ''}">
         <span class="vw-name">${esc(s.name)} ${s.archiviert ? '<span class="badge">Archiv</span>' : ''}</span>
         <button class="btn ghost small" data-act="archiv" data-id="${s.id}">${s.archiviert ? 'Reaktivieren' : 'Archivieren'}</button>
-        <button class="btn danger small" data-act="del-saison" data-id="${s.id}" title="Löschen">🗑</button>
       </li>`).join('') || '<li class="muted">Noch keine Saison.</li>';
 
     vw.querySelector('.vw-teams').innerHTML = st.teams.map(t => `
       <li>
         <span class="vw-name"><small class="muted">${esc(t.verein)}</small> ${esc(t.name)}</span>
         <button class="btn ghost small" data-act="edit-team" data-id="${t.id}" title="Umbenennen">✏️</button>
-        <button class="btn danger small" data-act="del-team" data-id="${t.id}" title="Löschen">🗑</button>
       </li>`).join('') || '<li class="muted">Noch kein Team.</li>';
   }
 
@@ -551,7 +549,7 @@ function verwaltungDialogHTML() {
         <button class="btn primary small btn-team">Hinzufügen</button>
         <button type="button" class="btn ghost small btn-team-abbr" hidden>Abbrechen</button>
       </form>
-      <p class="muted klein">Ein Team gibt es über alle Saisons hinweg – pro Saison bekommt es einen eigenen Kader.</p>
+      <p class="muted klein">Ein Team gibt es über alle Saisons hinweg – pro Saison bekommt es einen eigenen Kader.<br>🗑 Löschen von Teams und Saisons: auf der Hauptseite (mit Papierkorb).</p>
 
       <div class="dlg-actions">
         <button type="button" class="btn ghost btn-schliessen">Schliessen</button>

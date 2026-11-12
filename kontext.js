@@ -15,16 +15,18 @@ export function setAuswahl(neu) {
 }
 
 // Saisons (neueste zuerst), Teams (alphabetisch) und Kaderlisten laden
-export async function ladeStammdaten() {
+// Gelöschte (Papierkorb) werden ausgeblendet – ausser { mitGeloeschten: true }
+export async function ladeStammdaten({ mitGeloeschten = false } = {}) {
   const [s, t, l] = await Promise.all([
     sb.from('saisons').select('*'),
     sb.from('teams').select('*'),
     sb.from('kaderlisten').select('*'),
   ]);
   for (const r of [s, t, l]) if (r.error) throw r.error;
+  const sichtbar = x => mitGeloeschten || !x.geloescht_am;
   return {
-    saisons: s.data.sort((a, b) => b.name.localeCompare(a.name, 'de')),
-    teams: t.data.sort((a, b) =>
+    saisons: s.data.filter(sichtbar).sort((a, b) => b.name.localeCompare(a.name, 'de')),
+    teams: t.data.filter(sichtbar).sort((a, b) =>
       a.verein.localeCompare(b.verein, 'de') || a.name.localeCompare(b.name, 'de')),
     listen: l.data,
   };
