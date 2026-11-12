@@ -478,7 +478,8 @@ export async function mount(root) {
         <ul class="st-zuord">${leute.map((p, i) => `
           <li class="${!p.wahl ? 'offen' : !p.sicher && (p.wahl || null) === (p.kader_id || null) ? 'pruefen' : ''}">
             <div class="st-zu-su"><span class="st-g-nr">${p.nr ?? '–'}</span><span><strong>${esc(p.name || '?')}</strong>
-              <small class="muted">${p.goalie ? '🥅 Goalie' : 'Feld'}${p.start ? ' · Start' : ''}${p.nurTelegramm ? ' · nur im Telegramm' : ''} · ${esc((p.wahl || null) === (p.kader_id || null) ? p.grund : 'von Hand')}</small></span></div>
+              <small class="muted">${p.goalie ? '🥅 Goalie' : 'Feld'}${p.start ? ' · Start' : ''}${p.nurTelegramm ? ' · nur im Telegramm' : ''} · ${esc((p.wahl || null) === (p.kader_id || null) ? p.grund : 'von Hand')}</small>
+              ${(() => { const k = S.kMap.get(p.wahl); return k && p.nr != null && k.nummer != null && k.nummer !== p.nr ? `<small class="st-sonst">Nummer weicht ab (Kader: ${k.nummer}) – wird nur für diesen Match gespeichert</small>` : ''; })()}</span></div>
             <select data-i="${i}">${personOpts(p)}</select>
           </li>`).join('')}</ul>
         <p class="muted klein">Nicht zugeordnete Personen werden nicht gespeichert (ihre Tore zählen nur fürs Resultat). Zuordnungen werden für nächste Importe gemerkt.</p>` : ''}
@@ -621,6 +622,12 @@ export async function mount(root) {
     neuLaden = async () => { if (await lade()) zeichne(); };
 
     const vName = v => v ? (v.name ? `V${v.nr} · ${v.name}` : `Version ${v.nr}`) : '';
+    // Nummer in diesem Match (aus der Aufstellung); weicht sie vom Kader ab → Hinweis „sonst …“
+    const mNr = id => E.match_aufstellung.find(a => a.kader_id === id)?.nummer ?? kNr(id) ?? null;
+    const mLabel = id => {
+      const n = mNr(id), k = kNr(id);
+      return `<span class="st-kl">${n != null ? `<b>${n}</b> ` : ''}${esc(kName(id))}${n != null && k != null && n !== k ? ` <small class="st-sonst">(sonst ${k})</small>` : ''}</span>`;
+    };
     const linieName = l => l ? `${ARTEN_LINIE[l.art]} ${l.nr}${l.name ? ` · ${l.name}` : ''}` : '';
     const findeLinie = lid => { for (const v of V) { const l = v.linien.find(x => x.id === lid); if (l) return { v, l }; } return null; };
 
@@ -630,7 +637,7 @@ export async function mount(root) {
       const R = L.zeitleiste(ev);
       const ver = L.versionen(ev, V);
       const goalies = L.goalieBilanz(E, E.match_aufstellung, ev);
-      const auf = [...E.match_aufstellung].sort((a, b) => (b.goalie - a.goalie) || (a.nummer ?? kNr(a.kader_id) ?? 99) - (b.nummer ?? kNr(b.kader_id) ?? 99));
+      const auf = [...E.match_aufstellung].sort((a, b) => (b.goalie - a.goalie) || (mNr(a.kader_id) ?? 99) - (mNr(b.kader_id) ?? 99));
       const r = ergebnis(E);
       const info = [datumText(E.datum), E.ort ? ORT[E.ort] : null, E.wettbewerb ? WETTBEWERB[E.wettbewerb] : null,
         `${L.abschnittZahl(E)}×${L.abschnittMin(E)}'`].filter(Boolean).join(' · ');
@@ -645,11 +652,11 @@ export async function mount(root) {
         absch = a;
         const s = R.sit.get(e.id);
         let text;
-        if (e.art === 'tor') text = `${e.kader_id ? kLabel(e.kader_id) : '<i>unbekannt</i>'}${e.assist_id ? ` <small>· Assist ${kLabel(e.assist_id)}</small>` : ''}`;
+        if (e.art === 'tor') text = `${e.kader_id ? mLabel(e.kader_id) : '<i>unbekannt</i>'}${e.assist_id ? ` <small>· Assist ${mLabel(e.assist_id)}</small>` : ''}`;
         else if (e.art === 'gegentor') text = `Gegentor${e.gegner_nr != null ? ` <small>#${e.gegner_nr}</small>` : ''}`;
-        else if (e.art === 'strafe') text = `${e.kader_id ? kLabel(e.kader_id) : '<i>unbekannt</i>'} <small>· ${esc(e.minuten || '?')}'${e.grund ? ` ${esc(e.grund)}` : ''}</small>`;
+        else if (e.art === 'strafe') text = `${e.kader_id ? mLabel(e.kader_id) : '<i>unbekannt</i>'} <small>· ${esc(e.minuten || '?')}'${e.grund ? ` ${esc(e.grund)}` : ''}</small>`;
         else if (e.art === 'gegnerstrafe') text = `Gegner${e.gegner_nr != null ? ` #${e.gegner_nr}` : ''} <small>· ${esc(e.minuten || '?')}'${e.grund ? ` ${esc(e.grund)}` : ''}</small>`;
-        else text = e.kader_id ? `${kLabel(e.kader_id)} <small>ins Tor</small>` : 'Tor leer <small>(6. Feldspieler:in)</small>';
+        else text = e.kader_id ? `${mLabel(e.kader_id)} <small>ins Tor</small>` : 'Tor leer <small>(6. Feldspieler:in)</small>';
         const istTor = e.art === 'tor' || e.art === 'gegentor';
         const vEff = V.find(v => v.id === ver.get(e.id));
         const li = e.linie_id ? findeLinie(e.linie_id) : null;
@@ -689,7 +696,7 @@ export async function mount(root) {
         <h3 class="gruppe">Aufstellung <span>${auf.length}</span>${ro ? '' : '<button class="btn ghost small st-auf-edit">Bearbeiten</button>'}</h3>
         ${auf.length ? `<div class="st-auf">${auf.map(a => {
           const g = goalies.get(a.kader_id);
-          return `<span class="st-pers ${a.goalie ? 'goalie' : ''}">${a.goalie ? '🥅 ' : ''}${kLabel(a.kader_id)}${a.goalie && g?.sek ? ` <small>${Math.round(g.sek / 60)}' · ${g.gegentore} GT</small>` : ''}</span>`;
+          return `<span class="st-pers ${a.goalie ? 'goalie' : ''}">${a.goalie ? '🥅 ' : ''}${mLabel(a.kader_id)}${a.goalie && g?.sek ? ` <small>${Math.round(g.sek / 60)}' · ${g.gegentore} GT</small>` : ''}</span>`;
         }).join('')}</div>` : '<p class="muted klein">Noch keine Aufstellung.</p>'}
 
         <h3 class="gruppe">Telegramm <span>${ev.length}</span>${tore.length ? `<em class="muted">Linie bei ${mitLinie}/${tore.length} Toren</em>` : ''}</h3>
@@ -761,12 +768,13 @@ export async function mount(root) {
         .sort((a, b) => istGoalie(b) - istGoalie(a) || (a.nummer ?? 99) - (b.nummer ?? 99));
       oeffneDialog(`
         <h2>Aufstellung</h2>
-        <p class="muted klein">Wer hat gespielt? Bei Goalies den Start-Goalie mit ▶ markieren.</p>
+        <p class="muted klein">Wer hat gespielt? Bei Goalies den Start-Goalie mit ▶ markieren. Die Nummer gilt nur für diesen Match (z.B. anderes Trikot).</p>
         <ul class="st-auf-liste">${personen.map(k => {
           const a = drin.get(k.id);
           const goalie = a ? a.goalie : istGoalie(k);
           return `<li data-id="${k.id}">
-            <label class="st-check"><input type="checkbox" class="c-dabei" ${a ? 'checked' : ''}><span>${kLabel(k.id)}</span></label>
+            <label class="st-check"><input type="checkbox" class="c-dabei" ${a ? 'checked' : ''}><span>${esc(k.name)}</span></label>
+            <input class="st-nr c-nr" type="number" inputmode="numeric" min="0" max="99" value="${a?.nummer ?? k.nummer ?? ''}" placeholder="Nr" title="Nummer in diesem Match${k.nummer != null ? ` (Kader: ${k.nummer})` : ''}">
             <button class="st-mini c-goalie ${goalie ? 'on' : ''}" title="Goalie">🥅</button>
             <button class="st-mini c-start ${a?.start ? 'on' : ''}" title="Start-Goalie" ${goalie ? '' : 'hidden'}>▶</button>
           </li>`;
@@ -798,7 +806,8 @@ export async function mount(root) {
         d.querySelector('.btn-ok').onclick = async () => {
           const rows = [...liste.querySelectorAll('li')].filter(li => li.querySelector('.c-dabei').checked).map(li => {
             const goalie = li.querySelector('.c-goalie').classList.contains('on');
-            return { einsatz_id: E.id, kader_id: li.dataset.id, nummer: drin.get(li.dataset.id)?.nummer ?? kNr(li.dataset.id) ?? null,
+            const nr = li.querySelector('.c-nr').value.trim();
+            return { einsatz_id: E.id, kader_id: li.dataset.id, nummer: nr === '' ? null : Math.min(99, Math.max(0, parseInt(nr, 10) || 0)),
               goalie, start: goalie && li.querySelector('.c-start').classList.contains('on') };
           });
           await db(sb.from('match_aufstellung').delete().eq('einsatz_id', E.id));

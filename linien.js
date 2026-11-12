@@ -474,7 +474,7 @@ export async function mount(root) {
     let E = null, V = [], aktivVar = null, modus = 'edit';
 
     async function lade() {
-      const e = await db(sb.from('einsaetze').select('*, match_ereignisse(id)').eq('id', id));
+      const e = await db(sb.from('einsaetze').select('*, match_ereignisse(id), match_aufstellung(kader_id, nummer)').eq('id', id));
       E = e[0];
       if (!E) { box.innerHTML = `<div class="hinweis"><p>Dieser Einsatz existiert nicht (mehr).</p><a class="btn primary" href="#/linien">Zur Übersicht</a></div>`; return false; }
       await ladeBasis(E.liste_id);
@@ -542,6 +542,9 @@ export async function mount(root) {
       return v.linien.flatMap(l => l.linien_spieler.filter(r => r.kader_id === kaderId).map(r => ({ l, r })));
     }
 
+    // Rückennummer: im Match die Nummer aus der Match-Statistik, sonst die Kader-Nummer
+    const nrVon = kid => E?.match_aufstellung?.find(a => a.kader_id === kid)?.nummer ?? S.kMap.get(kid)?.nummer ?? null;
+
     // ---- Spielfeld einer Formation -------------------------------
     function feldHTML(l, v, { klickbar = true, gross = false } = {}) {
       const sys = SYSTEME[l.system] || SYSTEME[ARTEN[l.art].systeme[0]];
@@ -551,7 +554,7 @@ export async function mount(root) {
           einsaetzeIn(v, r.kader_id).filter(z => z.l.art === 'linie').length > 1;
         return `<button class="ln-post rolle-${rolle} ${r ? 'voll' : 'leer'}" style="left:${x}%;top:${y}%"
             data-l="${l.id}" data-p="${p}" ${klickbar ? '' : 'disabled tabindex="-1"'} title="${esc(p)}">
-          <span class="ln-kreis">${r ? esc(r.kader_id ? (S.kMap.get(r.kader_id)?.nummer ?? '–') : 'G') : esc(p)}</span>
+          <span class="ln-kreis">${r ? esc(r.kader_id ? (nrVon(r.kader_id) ?? '–') : 'G') : esc(p)}</span>
           <span class="ln-name">${r ? esc(gross ? nameVon(r).replace(' (Gast)', '') : kurzVon(r)) : (klickbar ? '＋' : '')}</span>
           ${r ? `<span class="ln-tag">${esc(p)}</span>` : ''}
           ${doppelt ? '<span class="ln-2x" title="Steht in mehreren Linien">2×</span>' : ''}
@@ -561,7 +564,7 @@ export async function mount(root) {
       return `<div class="ln-feld ${gross ? 'gross' : ''}"><span class="ln-tor"></span>${posten}</div>
         ${zusatz.length || (klickbar && !gross) ? `<div class="ln-zusatz">
           ${zusatz.map(r => `<button class="ln-zchip rolle-${r.rolle}" data-l="${l.id}" data-z="${r.id}" ${klickbar ? '' : 'disabled'}>
-            <b>${esc(r.kader_id ? (S.kMap.get(r.kader_id)?.nummer ?? '–') : 'G')}</b> ${esc(gross ? nameVon(r).replace(' (Gast)', '') : kurzVon(r))} <small>${r.rolle === 'flex' ? 'flex' : r.rolle}</small></button>`).join('')}
+            <b>${esc(r.kader_id ? (nrVon(r.kader_id) ?? '–') : 'G')}</b> ${esc(gross ? nameVon(r).replace(' (Gast)', '') : kurzVon(r))} <small>${r.rolle === 'flex' ? 'flex' : r.rolle}</small></button>`).join('')}
           ${klickbar && !gross ? `<button class="ln-zchip neu" data-l="${l.id}" data-z="neu">＋ Zusatz</button>` : ''}
         </div>` : ''}`;
     }
@@ -610,7 +613,7 @@ export async function mount(root) {
       const drin = new Set(v.linien.filter(l => l.art === 'linie').flatMap(l => l.linien_spieler.map(r => r.kader_id)));
       const frei = feldAktiv().filter(k => !drin.has(k.id));
       return `<div class="ln-frei"><h3 class="gruppe">Nicht in einer Linie <span>${frei.length}</span></h3>
-        <p>${frei.length ? frei.map(k => `${k.nummer != null ? `<b>${k.nummer}</b> ` : ''}${esc(k.name)}`).join(' · ') : 'Alle aktiven Feldspieler:innen sind eingeteilt. 👍'}</p></div>`;
+        <p>${frei.length ? frei.map(k => `${nrVon(k.id) != null ? `<b>${nrVon(k.id)}</b> ` : ''}${esc(k.name)}`).join(' · ') : 'Alle aktiven Feldspieler:innen sind eingeteilt. 👍'}</p></div>`;
     }
 
     // ---- Person auf Posten setzen ---------------------------------
@@ -629,7 +632,7 @@ export async function mount(root) {
         <ul class="ln-pick">${leute.map(k => {
           const sonst = einsaetzeIn(v, k.id).filter(z => !(z.l.id === l.id && z.r.id === aktuell?.id));
           return `<li><button class="ln-pick-p ${aktuell?.kader_id === k.id ? 'on' : ''}" data-k="${k.id}">
-            <span class="nr">${k.nummer ?? '–'}</span>
+            <span class="nr">${nrVon(k.id) ?? '–'}</span>
             <span class="info"><strong>${esc(k.name)}</strong>${sonst.length ? `<small>schon: ${sonst.map(z => `${formLabel(z.l)} ${z.r.posten === 'Z' ? '(Zusatz)' : z.r.posten}`).join(', ')}</small>` : ''}</span>
           </button></li>`;
         }).join('') || '<li class="muted pad">Keine aktiven Feldspieler:innen im Kader.</li>'}</ul>

@@ -185,3 +185,7 @@ li.st-ev { cursor: default; }
   width: 36px; height: 34px; cursor: pointer; opacity: .45;
 }
 .st-mini.on { opacity: 1; background: #e0f2fe; border-color: #7dd3fc; }
+
+/* Match-Nummer ≠ Kader-Nummer */
+.st-sonst { color: #b45309; font-weight: 500; }
+.st-nr { width: 56px !important; flex: none; padding: 6px !important; text-align: center; font-size: 15px !important; }
