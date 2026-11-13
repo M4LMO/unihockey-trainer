@@ -10,7 +10,7 @@
 // ============================================================
 import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
-import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel } from './kontext.js';
+import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel, ladeIch, sperrGrund } from './kontext.js';
 import * as L from './statistik-logik.js';
 
 const TABS = ['matches', 'skorer', 'goalies', 'team'];
@@ -63,7 +63,9 @@ export async function mount(root) {
   };
   const saison = () => S.st.saisons.find(s => s.id === S.saisonId);
   const team = () => S.st.teams.find(t => t.id === S.teamId);
-  const nurLesen = () => !!saison()?.archiviert;
+  const ich = await ladeIch().catch(() => null);
+  const nurLesen = () => !!sperrGrund(saison(), ich);
+  const banner = () => `<div class="banner">${esc(sperrGrund(saison(), ich))}</div>`;
   const kName = id => id ? (S.kMap.get(id)?.name ?? '?') : '';
   const kNr = id => S.kMap.get(id)?.nummer;
   const kLabel = id => { const n = kNr(id); return `<span class="st-kl">${n != null ? `<b>${n}</b> ` : ''}${esc(kName(id))}</span>`; };
@@ -166,7 +168,7 @@ export async function mount(root) {
         <div class="team-chips">${S.st.teams.map(t => `
           <button class="chip ${t.id === S.teamId ? 'on' : ''}" data-id="${t.id}">
             ${vereine.size > 1 ? `<small>${esc(t.verein)}</small>` : ''}${esc(t.name)}</button>`).join('')}</div>
-        ${nurLesen() ? '<div class="banner">📦 Archivierte Saison – nur Ansicht</div>' : ''}
+        ${nurLesen() ? banner() : ''}
         <div class="st-inhalt"></div>
         <button class="fab" hidden aria-label="Match importieren">＋</button>`;
       box.querySelector('.sel-saison').onchange = e => { S.saisonId = e.target.value; setAuswahl({ saisonId: S.saisonId }); neuLaden(); };
@@ -679,7 +681,7 @@ export async function mount(root) {
           </div>
           ${ro ? '' : '<button class="btn ghost small st-edit" title="Match bearbeiten">✏️</button>'}
         </div>
-        ${ro ? '<div class="banner">📦 Archivierte Saison – nur Ansicht</div>' : ''}
+        ${ro ? banner() : ''}
         <section class="st-karte st-score">
           <span class="st-gross-res ${r || ''}">${resText(E) || '–:–'}</span>
           <div class="st-kpis klein">

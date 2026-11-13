@@ -37,6 +37,9 @@ function stil() {
     .adm-neu { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
     .adm-neu input { flex: 1 1 140px; padding: 8px 10px; }
     .adm .vw-liste li { background: var(--card); box-shadow: var(--shadow); flex-wrap: wrap; }
+    .dlg-staff .vw-liste li { flex-wrap: wrap; }
+    .dlg-staff .vw-name { flex: 1 1 100%; overflow-wrap: anywhere; }
+    .dlg-staff .sel-recht { flex: 1; font-size: 16px; padding: 6px 8px; }
     .adm-hilfe { font-size: .85rem; line-height: 1.5; background: #eff6ff; color: #1e3a8a; border-radius: 10px; padding: 10px 12px; margin: 0; }
     .adm-hilfe a { color: inherit; font-weight: 700; }
     .adm-papierkorb li { opacity: .85; }
@@ -378,6 +381,10 @@ export async function mount(root) {
     const liste = staff.filter(s => s.team_id === dlgTeam?.id);
     dlg.querySelector('.vw-liste').innerHTML = liste.map(s => `
       <li><span class="vw-name">${esc(s.email)}</span>
+        <select class="sel-recht" data-recht="${s.user_id}" aria-label="Rechte">
+          <option value="schreiben" ${s.nur_lesen ? '' : 'selected'}>✏️ Darf bearbeiten</option>
+          <option value="lesen" ${s.nur_lesen ? 'selected' : ''}>👀 Nur lesen</option>
+        </select>
         <button type="button" class="btn danger small" data-weg="${s.user_id}" title="Zugang entfernen">✕</button></li>`).join('')
       || '<li class="muted">Noch kein Staff-Login für dieses Team.</li>';
   }
@@ -393,6 +400,16 @@ export async function mount(root) {
       await laden();
     }
     if (e.target.closest('.btn-schliessen')) dlg.close();
+  });
+
+  dlg.addEventListener('change', async e => {
+    const sel = e.target.closest('[data-recht]'); if (!sel) return;
+    const s = staff.find(x => x.user_id === sel.dataset.recht);
+    const wert = sel.value === 'lesen';
+    const { error } = await sb.rpc('staff_nur_lesen', { p_user: s.user_id, p_wert: wert });
+    if (error) { toast(fehlerText(error), 'error'); return laden(); }
+    toast(wert ? `${s.email}: nur lesen` : `${s.email}: darf bearbeiten`, 'ok');
+    await laden();
   });
 
   dlg.querySelector('form').addEventListener('submit', async e => {
@@ -453,6 +470,11 @@ function staffDialogHTML() {
         <a href="${USERS_LINK}" target="_blank" rel="noopener">Authentication → Users</a>
         → <i>Add user</i> → <i>Create new user</i> (✅ Auto Confirm). Danach hier die E-Mail eintragen.
         Jedes Staff-Mitglied bekommt einen eigenen Login.
+      </p>
+      <p class="adm-hilfe">
+        <b>✏️ Darf bearbeiten:</b> Kader, Linien und Statistik im Team ändern.
+        <b>👀 Nur lesen:</b> sieht alles, kann nichts ändern.
+        Saisons, Teams und neue Kader legst immer du an.
       </p>
       <div class="dlg-actions">
         <button type="button" class="btn ghost btn-schliessen">Schliessen</button>

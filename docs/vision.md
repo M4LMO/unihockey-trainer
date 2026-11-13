@@ -1,4 +1,4 @@
-# Trainer Tools – Vision & Technik (Stand 12.11.2026)
+# Trainer Tools – Vision & Technik (Stand 13.11.2026)
 
 ## Ziel
 Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Unihockey vereinfacht. Tools werden Stück für Stück erarbeitet und in die App eingebettet.
@@ -18,12 +18,14 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 
 ## Zugang
 - **Admin (Marc)**: sieht alles. Startseite `#/` = **Hauptseite** (`admin.js`): Teams anlegen/umbenennen/in Papierkorb, Saisons anlegen/archivieren/in Papierkorb, Papierkorb (wiederherstellen / endgültig löschen mit Namen eintippen), Staff-Logins pro Team, 💾 Sicherung. „Öffnen →“ setzt Team-Auswahl und geht auf `#/team` (Tool-Kacheln, „← Alle Teams“).
-- **Staff: individuelle Logins** (eigene E-Mail pro Person), beliebig viele pro Team; **ein Login = genau ein Team** (Erweiterung auf mehrere Teams pro Login möglich, falls nötig). Startseite = Tool-Kacheln des eigenen Teams. Sieht per RLS nur das eigene Team (nicht, wenn Team im Papierkorb). Darf im Team alles, aber **keine Teams/Saisons ändern**.
+- **Staff: individuelle Logins** (eigene E-Mail pro Person), beliebig viele pro Team; **ein Login = genau ein Team** (Erweiterung auf mehrere Teams pro Login möglich, falls nötig). Startseite = Tool-Kacheln des eigenen Teams. Sieht per RLS nur das eigene Team (nicht, wenn Team im Papierkorb). **Keine Teams/Saisons/Kaderlisten ändern** (neue Saison für ein Team = neuer Kader → immer Admin; Staff sieht „Bitte beim Admin melden“).
+- **Rechte pro Staff-Login** (SQL 07, im 🔑-Staff-Dialog umschaltbar): **✏️ Darf bearbeiten** = Kader, Linien, Statistik im eigenen Team ändern · **👀 Nur lesen** = alles sehen, nichts ändern (Banner, Bearbeiten-Knöpfe ausgeblendet). DB-sicher über RLS.
+- **Archivierte Saison** ist in der DB gesperrt – auch für den Admin (zum Ändern zuerst reaktivieren).
 - Erstes Team: **Bern Capitals – U21F**.
 - Login ohne Eintrag in `zugang` → „Kein Zugang“.
 - Logins im Supabase-Dashboard anlegen (Authentication → Users → Add user, Auto Confirm, Start-Passwort); Zuordnung in der App (🔑 Staff) über RPC `staff_zuordnen(email, team)`.
 - **Passwort ändern:** 🔑-Knopf in der Kopfzeile (alle Logins), `sb.auth.updateUser({password})`, min. 8 Zeichen.
-- **Offen:** Rechte feiner einschränken – Stufe 1 Tools pro Login ein-/ausblenden (einfach), Stufe 2 „Nur lesen“ pro Login (DB-sicher über RLS, UI-Aufwand in Linien/Statistik), Stufe 3 pro Tool lesen/bearbeiten. Empfehlung: Stufe 1 + „Nur lesen“. Noch nicht entschieden.
+- **Evtl. später:** Tools pro Login ein-/ausblenden. Bewusst nicht: Rechte pro Tool (lesen/bearbeiten je Tool).
 
 ## Konfiguration (öffentliche Werte – dürfen im Code stehen)
 - Repo: https://github.com/M4LMO/unihockey-trainer · App: https://m4lmo.github.io/unihockey-trainer
@@ -36,11 +38,11 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - `saisons`: id, name (unique, z.B. "2026/27"), archiviert (→ nur Ansicht), geloescht_am — global für alle Teams
 - `kaderlisten`: id, saison_id, team_id (unique Paar) — ein Kader pro Saison+Team
 - `kader`: id, liste_id, name, nummer (0–99, optional; „normale“ Nummer), position ('Goalie'|'Feld' bzw. Staff-Funktion frei), rolle ('spieler'|'staff'), aktiv (bool), erstellt_am
-- `zugang` (SQL 05): user_id (PK → auth.users), admin (bool), team_id. Funktionen (security definer): `ist_admin()`, `darf_team(t)` (Staff nur wenn Team nicht im Papierkorb), `darf_liste(l)`, `darf_einsatz(e)`, `darf_variante(v)`, `darf_linie(x)`; RPCs (nur Admin): `staff_liste()`, `staff_zuordnen(p_email, p_team)`, `staff_entfernen(p_user)`.
+- `zugang` (SQL 05/07): user_id (PK → auth.users), admin (bool), team_id, nur_lesen (bool). Funktionen (security definer): `ist_admin()`, `ich_nur_lesen()`, Lesen: `darf_team(t)` (Staff nur wenn Team nicht im Papierkorb), `darf_liste(l)`, `darf_einsatz(e)`, `darf_variante(v)`, `darf_linie(x)`; Schreiben: `darf_liste_schreiben(l)` (= darf_liste + nicht nur_lesen + Saison nicht archiviert), `darf_einsatz_schreiben`, `darf_variante_schreiben`, `darf_linie_schreiben`; RPCs (nur Admin): `staff_liste()` (mit nur_lesen), `staff_zuordnen(p_email, p_team)`, `staff_entfernen(p_user)`, `staff_nur_lesen(p_user, p_wert)`.
 - Linien-Tool (SQL 03): `einsaetze`, `varianten`, `linien`, `linien_spieler`, `chemie` – Details in `docs/linien-spec.md`.
 - Statistik-Tool (SQL 04): `einsaetze` + tore_fuer, tore_gegen, abschnitte, abschnitt_min, stat_am; `match_aufstellung` (nummer = Nummer in diesem Match), `match_ereignisse`, `su_zuordnung` – Details in `docs/statistik-spec.md`.
-- **RLS:** Policy „Team-Zugriff“ pro Tabelle über `darf_*()` (teams: lesen darf_team, schreiben Admin; saisons: lesen alle, schreiben Admin; zugang: eigenen lesen, Admin alles). **Neue Tabellen** brauchen eine Policy mit der passenden `darf_*`-Funktion – NICHT `using (true)`! Dazu Realtime aktivieren und die Tabelle in `TABELLEN` in `admin.js` (Sicherung) eintragen. Löschen kaskadiert.
-- SQL-Historie in `sql/`: 01 kader, 02 Saison/Team, 03 Linien, 04 Statistik, 05 Zugang, 06 Papierkorb. **Nächste freie Nummer: 07.**
+- **RLS:** pro Tabelle 4 Policies „Lesen“ (`darf_*`) / „Anlegen“ / „Ändern“ / „Löschen“ (`darf_*_schreiben`) (teams: lesen darf_team, schreiben Admin; saisons: lesen alle, schreiben Admin; kaderlisten: lesen darf_team, schreiben nur Admin; zugang: eigenen lesen, Admin alles). **Neue Tabellen** brauchen diese 4 Policies mit den passenden `darf_*`-Funktionen – NICHT `using (true)`! Im UI `sperrGrund(saison, ich)` aus `kontext.js` für `nurLesen()` verwenden. Dazu Realtime aktivieren und die Tabelle in `TABELLEN` in `admin.js` (Sicherung) eintragen. Löschen kaskadiert.
+- SQL-Historie in `sql/`: 01 kader, 02 Saison/Team, 03 Linien, 04 Statistik, 05 Zugang, 06 Papierkorb, 07 Rechte (Nur lesen, Archiv-Sperre, Kaderlisten nur Admin). **Nächste freie Nummer: 08.**
 
 ## Rückennummern pro Match
 - Kader-Nummer = normale Nummer. Abweichende Nummer pro Match in `match_aufstellung.nummer`.
@@ -51,7 +53,7 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - `index.html`, `style.css` (Vereinsfarbe `--team`), `config.js`, `supabase.js` (supabase-js v2 via jsDelivr), `ui.js` (esc, toast, fehlerText)
 - `app.js` – Auth, Routing: Admin `#/` → admin.js, `#/team` → Tool-Kacheln; Staff `#/` → Tool-Kacheln. Nur fertige Tools als Kacheln (`soon` wird ausgeblendet). Neue Tools in `TOOLS`; Modul exportiert `mount(container)` → Aufräumfunktion. Auth-Callback ruft zeigeApp über setTimeout auf. 🔑-Knopf „Passwort ändern“.
 - `admin.js` – Hauptseite (nur Admin), CSS selbst eingefügt. Bestätigungsdialog `frage({titel, html, knopf, tippen})`. Papierkorb = `geloescht_am`; endgültig = delete nur nach Namen eintippen. 💾 Sicherung: alle Tabellen in `TABELLEN` (paginiert à 1000) als JSON `trainer-tools-sicherung-1`. Wiederherstellen aus Datei gibt es (noch) nicht.
-- `kontext.js` – ladeStammdaten({mitGeloeschten}) (Standard: Papierkorb ausgeblendet), ladeKader(listeId), get/setAuswahl() (localStorage: saisonId, teamId), naechsteSaison(), teamLabel(), ladeIch() ({admin, teamId, email, ohneZugang}), vergissIch()
+- `kontext.js` – ladeStammdaten({mitGeloeschten}) (Standard: Papierkorb ausgeblendet), ladeKader(listeId), get/setAuswahl() (localStorage: saisonId, teamId), naechsteSaison(), teamLabel(), ladeIch() ({admin, teamId, email, ohneZugang, nurLesen}), vergissIch(), sperrGrund(saison, ich) (Banner-Text, '' = darf ändern)
 - `nummern.js` – andere Rückennummern aus Matches
 - `kader.js` – Tool Kader (Verwaltung Saisons & Teams nur Admin, ohne Löschen; Staff ohne Saison → „beim Admin melden“)
 - `linien.js` + `linien.css` + `linien-auswertung.js` + `linien-ideen.js` – Tool Linien (`docs/linien-spec.md`)
@@ -59,7 +61,6 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - `manifest.webmanifest`, `icon.svg`, `icon-180/192/512.png`
 
 ## Backlog (Empfehlung 12.11.)
-- [ ] Rechte pro Staff-Login (siehe Zugang → Offen)
 - [ ] Cache-Busting (Versionsnummer an Import-Pfaden; GitHub Pages cached ~10 min)
 - [ ] Präsenz (anwesend/abwesend/entschuldigt, **keine Gründe**) → Linien-Tool nur Anwesende
 - [ ] Trainingsplanung + Übungsbibliothek

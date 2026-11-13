@@ -70,6 +70,15 @@ export async function ladeIch(neu = false) {
   return (ichCache = {
     uid: user.id, email: user.email,
     admin: !!data?.admin, teamId: data?.team_id ?? null, ohneZugang: !data,
+    nurLesen: !data?.admin && !!data?.nur_lesen,
   });
 }
 export function vergissIch() { ichCache = null; }
+
+// Warum darf hier nichts geändert werden? '' = alles erlaubt.
+// (Die Datenbank sperrt dasselbe – das hier blendet nur Knöpfe aus.)
+export function sperrGrund(saison, ich) {
+  if (saison?.archiviert) return '📦 Archivierte Saison – nur Ansicht';
+  if (ich?.nurLesen) return '👀 Nur-lesen-Zugang – du kannst alles ansehen, aber nichts ändern';
+  return '';
+}
