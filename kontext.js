@@ -53,7 +53,7 @@ export function naechsteSaison(saisons) {
 
 export const teamLabel = t => t ? `${t.verein} – ${t.name}` : '';
 
-// ---- Wer bin ich? (Admin oder Staff eines Teams) -----------------
+// ---- Wer bin ich? (Admin, Zuschauer:in oder Staff eines Teams) ---
 let ichCache = null;
 export async function ladeIch(neu = false) {
   if (ichCache && !neu) return ichCache;
@@ -70,7 +70,8 @@ export async function ladeIch(neu = false) {
   return (ichCache = {
     uid: user.id, email: user.email,
     admin: !!data?.admin, teamId: data?.team_id ?? null, ohneZugang: !data,
-    nurLesen: !data?.admin && !!data?.nur_lesen,
+    nurLesen: !!data?.nur_lesen,
+    zuschauer: !!data?.admin && !!data?.nur_lesen,   // sieht alles wie Admin, ändert nichts
   });
 }
 export function vergissIch() { ichCache = null; }
@@ -79,6 +80,7 @@ export function vergissIch() { ichCache = null; }
 // (Die Datenbank sperrt dasselbe – das hier blendet nur Knöpfe aus.)
 export function sperrGrund(saison, ich) {
   if (saison?.archiviert) return '📦 Archivierte Saison – nur Ansicht';
+  if (ich?.zuschauer) return '👀 Zuschauer-Zugang – du siehst alles, kannst aber nichts ändern';
   if (ich?.nurLesen) return '👀 Nur-lesen-Zugang – du kannst alles ansehen, aber nichts ändern';
   return '';
 }

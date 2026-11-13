@@ -52,7 +52,8 @@ export async function mount(root) {
 
   // Saisons & Teams verwaltet nur der Admin
   const ich = await ladeIch().catch(() => null);
-  if (!ich?.admin) $('.btn-verwalten').hidden = true;
+  const vollAdmin = !!ich?.admin && !ich?.nurLesen;
+  if (!vollAdmin) $('.btn-verwalten').hidden = true;
 
   const saison = () => st.saisons.find(s => s.id === saisonId);
   const team = () => st.teams.find(t => t.id === teamId);
@@ -138,7 +139,7 @@ export async function mount(root) {
     if (key === inhaltKey && zustand === 'liste') return zeichneListe();
     inhaltKey = key;
 
-    if (zustand === 'setup' && !ich?.admin) {
+    if (zustand === 'setup' && !vollAdmin) {
       inhalt.innerHTML = `
         <div class="hinweis">
           <h3>👋 Willkommen!</h3>
@@ -165,7 +166,7 @@ export async function mount(root) {
         .sort((a, b) => b.saison.name.localeCompare(a.saison.name, 'de'));
       inhalt.innerHTML = saison()?.archiviert ? `
         <div class="hinweis"><p>📦 Für <b>${esc(teamLabel(team()))}</b> gibt es in der archivierten
-        Saison <b>${esc(saison()?.name)}</b> keinen Kader.</p></div>` : !ich?.admin ? `
+        Saison <b>${esc(saison()?.name)}</b> keinen Kader.</p></div>` : !vollAdmin ? `
         <div class="hinweis"><p><b>${esc(teamLabel(team()))}</b> hat in der Saison
         <b>${esc(saison()?.name)}</b> noch keinen Kader. Bitte beim Admin melden.</p></div>` : `
         <div class="hinweis">
