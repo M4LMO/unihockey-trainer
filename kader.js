@@ -6,7 +6,7 @@ import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
 import { ladeAndereNummern, auchNr } from './nummern.js';
 import {
-  ladeStammdaten, ladeKader, getAuswahl, setAuswahl, naechsteSaison, teamLabel, ladeIch,
+  ladeStammdaten, ladeKader, getAuswahl, setAuswahl, naechsteSaison, teamLabel, ladeIch, sperrGrund,
 } from './kontext.js';
 
 export { ladeKader };
@@ -57,7 +57,8 @@ export async function mount(root) {
   const saison = () => st.saisons.find(s => s.id === saisonId);
   const team = () => st.teams.find(t => t.id === teamId);
   const liste = () => st.listen.find(l => l.saison_id === saisonId && l.team_id === teamId);
-  const nurLesen = () => !!saison()?.archiviert;
+  const nurLesen = () => !!sperrGrund(saison(), ich);
+  const banner = () => `<div class="banner">${esc(sperrGrund(saison(), ich))}</div>`;
 
   // ---- Laden ----------------------------------------------------
   let andere = new Map();   // andere Rückennummern aus Matches
@@ -162,9 +163,11 @@ export async function mount(root) {
         .map(x => ({ liste: x, saison: st.saisons.find(s => s.id === x.saison_id) }))
         .filter(x => x.saison)
         .sort((a, b) => b.saison.name.localeCompare(a.saison.name, 'de'));
-      inhalt.innerHTML = nurLesen() ? `
+      inhalt.innerHTML = saison()?.archiviert ? `
         <div class="hinweis"><p>📦 Für <b>${esc(teamLabel(team()))}</b> gibt es in der archivierten
-        Saison <b>${esc(saison()?.name)}</b> keinen Kader.</p></div>` : `
+        Saison <b>${esc(saison()?.name)}</b> keinen Kader.</p></div>` : !ich?.admin ? `
+        <div class="hinweis"><p><b>${esc(teamLabel(team()))}</b> hat in der Saison
+        <b>${esc(saison()?.name)}</b> noch keinen Kader. Bitte beim Admin melden.</p></div>` : `
         <div class="hinweis">
           <h3>Neuer Kader</h3>
           <p><b>${esc(teamLabel(team()))}</b> hat in der Saison <b>${esc(saison()?.name)}</b> noch keinen Kader.</p>
@@ -180,6 +183,7 @@ export async function mount(root) {
             <button class="btn ghost btn-leer">Leer starten</button>` : `
             <button class="btn primary btn-leer">Kader erstellen</button>`}
         </div>`;
+      if (!inhalt.querySelector('.btn-leer')) return;
       inhalt.querySelector('.btn-leer').onclick = () => kaderErstellen(null);
       inhalt.querySelector('.btn-kopie')?.addEventListener('click', () =>
         kaderErstellen(inhalt.querySelector('.sel-quelle').value));
@@ -187,7 +191,7 @@ export async function mount(root) {
     }
 
     inhalt.innerHTML = `
-      ${nurLesen() ? `<div class="banner">📦 Archivierte Saison – nur Ansicht</div>` : ''}
+      ${nurLesen() ? banner() : ''}
       <div class="toolbar">
         <div class="seg seg-filter" role="tablist">
           <button data-f="aktiv" class="${filter === 'aktiv' ? 'on' : ''}">Aktiv</button>

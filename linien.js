@@ -10,7 +10,7 @@
 // ============================================================
 import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
-import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel } from './kontext.js';
+import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel, ladeIch, sperrGrund } from './kontext.js';
 import { zeichneAuswertung } from './linien-auswertung.js';
 import { zeichneIdeen } from './linien-ideen.js';
 import { andereNummern, auchNr } from './nummern.js';
@@ -88,7 +88,9 @@ export async function mount(root) {
   };
   const saison = () => S.st.saisons.find(s => s.id === S.saisonId);
   const team = () => S.st.teams.find(t => t.id === S.teamId);
-  const nurLesen = () => !!saison()?.archiviert;
+  const ich = await ladeIch().catch(() => null);
+  const nurLesen = () => !!sperrGrund(saison(), ich);
+  const banner = () => `<div class="banner">${esc(sperrGrund(saison(), ich))}</div>`;
   const feldAktiv = () => S.kader.filter(k => istFeld(k) && k.aktiv);
 
   function setzeKader(liste) {
@@ -200,7 +202,7 @@ export async function mount(root) {
         <div class="team-chips">${S.st.teams.map(t => `
           <button class="chip ${t.id === S.teamId ? 'on' : ''}" data-id="${t.id}">
             ${vereine.size > 1 ? `<small>${esc(t.verein)}</small>` : ''}${esc(t.name)}</button>`).join('')}</div>
-        ${nurLesen() ? '<div class="banner">📦 Archivierte Saison – nur Ansicht</div>' : ''}
+        ${nurLesen() ? banner() : ''}
         <div class="ln-inhalt"></div>
         <button class="fab" hidden aria-label="Neu">＋</button>`;
 
@@ -474,7 +476,7 @@ export async function mount(root) {
           ${ro ? '' : '<button class="btn ghost small ln-e-edit" title="Bearbeiten">✏️</button>'}
         </div>
         ${E.notiz ? `<p class="ln-e-notiz">${esc(E.notiz)}</p>` : ''}
-        ${ro ? '<div class="banner">📦 Archivierte Saison – nur Ansicht</div>' : ''}
+        ${ro ? banner() : ''}
         <div class="team-chips ln-versionen">
           ${V.map(v => `<button class="chip ${v.id === aktivVar ? 'on' : ''}" data-v="${v.id}">${esc(v.name ? `${v.nr} · ${v.name}` : `Version ${v.nr}`)}</button>`).join('')}
           ${ro ? '' : `${V.length ? '<button class="chip ln-v-mehr" title="Version bearbeiten">⋯</button>' : ''}<button class="chip ln-v-neu">＋ Version</button>`}
