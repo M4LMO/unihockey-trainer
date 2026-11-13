@@ -4,7 +4,7 @@
 // ============================================================
 import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
-import { ladeStammdaten, setAuswahl, naechsteSaison, teamLabel } from './kontext.js';
+import { ladeStammdaten, setAuswahl, naechsteSaison, teamLabel, ladeIch, sperrGrund } from './kontext.js';
 import { SUPABASE_URL } from './config.js';
 
 const PROJEKT = SUPABASE_URL.replace(/^https:\/\//, '').split('.')[0];
@@ -38,6 +38,10 @@ function stil() {
     .adm-neu input { flex: 1 1 140px; padding: 8px 10px; }
     .adm .vw-liste li { background: var(--card); box-shadow: var(--shadow); flex-wrap: wrap; }
     .dlg-staff .vw-liste li { flex-wrap: wrap; }
+    .adm-ro .adm-neu, .adm-ro .sec-sicherung, .adm-ro [data-act="edit"], .adm-ro [data-act="weg-team"],
+    .adm-ro [data-act="archiv"], .adm-ro [data-act="weg-saison"], .adm-ro [data-act="zurueck"],
+    .adm-ro [data-act="endgueltig"], .adm-ro [data-act="weg-zuschauer"], .adm-ro .nur-admin,
+    .dlg-staff.ro [data-weg], .dlg-staff.ro .vw-add, .dlg-staff.ro .adm-hilfe { display: none; }
     .dlg-staff .vw-name { flex: 1 1 100%; overflow-wrap: anywhere; }
     .dlg-staff .sel-recht { flex: 1; font-size: 16px; padding: 6px 8px; }
     .adm-hilfe { font-size: .85rem; line-height: 1.5; background: #eff6ff; color: #1e3a8a; border-radius: 10px; padding: 10px 12px; margin: 0; }
@@ -60,8 +64,13 @@ export async function mount(root) {
   let st = { saisons: [], teams: [], listen: [] };   // inkl. Papierkorb
   let staff = [];
 
+  // Zuschauer:in: sieht alles, Bearbeiten-Knöpfe sind ausgeblendet (DB sperrt sowieso)
+  const ich = await ladeIch().catch(() => null);
+  const ro = !!ich?.nurLesen;
+
   root.innerHTML = `
-    <div class="home adm">
+    <div class="home adm ${ro ? 'adm-ro' : ''}">
+      ${ro ? `<div class="banner">${esc(sperrGrund(null, ich))}</div>` : ''}
       <section>
         <h2>🏒 Meine Teams</h2>
         <div class="adm-teams"><p class="muted">Lade …</p></div>
@@ -82,13 +91,24 @@ export async function mount(root) {
         <p class="muted klein" style="margin-top:6px">Saisons gelten für alle Teams. Archivierte Saisons kann man nur noch ansehen.</p>
       </section>
 
+      <section>
+        <h2>👀 Zuschauer-Logins</h2>
+        <ul class="vw-liste adm-zuschauer"></ul>
+        <form class="adm-neu f-zuschauer" novalidate>
+          <input name="email" type="email" placeholder="E-Mail des Logins" autocomplete="off">
+          <button class="btn primary small">＋ Zuschauer:in</button>
+        </form>
+        <p class="muted klein" style="margin-top:6px">Sieht alles wie du (alle Teams, Papierkorb, Staff-Logins), kann aber nichts ändern.
+          <span class="nur-admin">Login zuerst in Supabase unter <a href="${USERS_LINK}" target="_blank" rel="noopener">Authentication → Users</a> anlegen.</span></p>
+      </section>
+
       <section class="sec-papierkorb" hidden>
         <h2>🗑 Papierkorb</h2>
         <ul class="vw-liste adm-papierkorb"></ul>
         <p class="muted klein" style="margin-top:6px">Alles im Papierkorb ist für den Staff unsichtbar, aber noch vollständig vorhanden.</p>
       </section>
 
-      <section>
+      <section class="sec-sicherung">
         <h2>💾 Sicherung</h2>
         <div class="adm-sicherung">
           <p class="klein">Lädt <b>alle Daten</b> (alle Teams, Saisons, Kader, Linien, Statistiken) als Datei herunter.
@@ -102,6 +122,7 @@ export async function mount(root) {
 
   const $ = s => root.querySelector(s);
   const dlg = $('.dlg-staff');
+  if (ro) dlg.classList.add('ro');
   let dlgTeam = null;
 
   const aktivTeams = () => st.teams.filter(t => !t.geloescht_am);
@@ -147,6 +168,12 @@ export async function mount(root) {
         <button class="btn ghost small" data-act="archiv" data-id="${s.id}">${s.archiviert ? 'Reaktivieren' : 'Archivieren'}</button>
         <button class="btn danger small" data-act="weg-saison" data-id="${s.id}" title="In den Papierkorb">🗑</button>
       </li>`).join('') || '<li class="muted">Noch keine Saison.</li>';
+
+    const zuschauer = staff.filter(x => x.zuschauer);
+    $('.adm-zuschauer').innerHTML = zuschauer.map(z => `
+      <li><span class="vw-name">👀 ${esc(z.email)}</span>
+        <button class="btn danger small" data-act="weg-zuschauer" data-id="${z.user_id}" title="Zugang entfernen">✕</button></li>`).join('')
+      || '<li class="muted">Noch keine Zuschauer-Logins.</li>';
 
     const korb = [
       ...st.teams.filter(t => t.geloescht_am).map(t => ({ typ: 'team', id: t.id, name: teamLabel(t), am: t.geloescht_am })),
@@ -205,6 +232,14 @@ export async function mount(root) {
 
     if (b.dataset.act === 'open') return oeffne(id);
     if (b.dataset.act === 'staff') return oeffneStaff(t);
+    if (ro) return;   // Zuschauer:in: nur ansehen
+
+    if (b.dataset.act === 'weg-zuschauer') {
+      const z = staff.find(x => x.user_id === id);
+      if (!confirm(`Zuschauer-Zugang für ${z.email} entfernen?\n\n(Der Login selbst bleibt in Supabase bestehen.)`)) return;
+      ({ error } = await sb.rpc('staff_entfernen', { p_user: id }));
+      if (!error) toast('Zugang entfernt');
+    }
 
     if (b.dataset.act === 'edit') {
       const verein = prompt('Verein', t.verein); if (verein === null) return;
@@ -303,6 +338,23 @@ export async function mount(root) {
     await laden();
   });
 
+  $('.f-zuschauer').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (ro) return;
+    const f = e.target;
+    const email = f.email.value.trim(); if (!email) return;
+    const vorher = staff.find(x => x.email.toLowerCase() === email.toLowerCase());
+    if (vorher && !vorher.zuschauer) {
+      const alt = st.teams.find(t => t.id === vorher.team_id);
+      if (!confirm(`${email} ist zurzeit Staff-Login von „${teamLabel(alt)}“.\nStattdessen zu Zuschauer:in machen (sieht alles, ändert nichts)?`)) return;
+    }
+    const { error } = await sb.rpc('zuschauer_zuordnen', { p_email: email });
+    if (error) return toast(fehlerText(error), 'error');
+    toast(`${email} ist jetzt Zuschauer:in`, 'ok');
+    f.email.value = '';
+    await laden();
+  });
+
   // ---- Sicherung herunterladen --------------------------------------
   $('.btn-sicherung').addEventListener('click', async e => {
     const btn = e.target;
@@ -378,10 +430,10 @@ export async function mount(root) {
   }
 
   function zeichneStaff() {
-    const liste = staff.filter(s => s.team_id === dlgTeam?.id);
+    const liste = staff.filter(s => s.team_id === dlgTeam?.id && !s.zuschauer);
     dlg.querySelector('.vw-liste').innerHTML = liste.map(s => `
       <li><span class="vw-name">${esc(s.email)}</span>
-        <select class="sel-recht" data-recht="${s.user_id}" aria-label="Rechte">
+        <select class="sel-recht" data-recht="${s.user_id}" aria-label="Rechte" ${ro ? 'disabled' : ''}>
           <option value="schreiben" ${s.nur_lesen ? '' : 'selected'}>✏️ Darf bearbeiten</option>
           <option value="lesen" ${s.nur_lesen ? 'selected' : ''}>👀 Nur lesen</option>
         </select>
@@ -391,7 +443,7 @@ export async function mount(root) {
 
   dlg.addEventListener('click', async e => {
     const w = e.target.closest('[data-weg]');
-    if (w) {
+    if (w && !ro) {
       const s = staff.find(x => x.user_id === w.dataset.weg);
       if (!confirm(`Zugang für ${s.email} zu ${dlgTeam.name} entfernen?\n\n(Der Login selbst bleibt in Supabase bestehen.)`)) return;
       const { error } = await sb.rpc('staff_entfernen', { p_user: s.user_id });
@@ -403,7 +455,7 @@ export async function mount(root) {
   });
 
   dlg.addEventListener('change', async e => {
-    const sel = e.target.closest('[data-recht]'); if (!sel) return;
+    const sel = e.target.closest('[data-recht]'); if (!sel || ro) return;
     const s = staff.find(x => x.user_id === sel.dataset.recht);
     const wert = sel.value === 'lesen';
     const { error } = await sb.rpc('staff_nur_lesen', { p_user: s.user_id, p_wert: wert });
@@ -414,6 +466,7 @@ export async function mount(root) {
 
   dlg.querySelector('form').addEventListener('submit', async e => {
     e.preventDefault();
+    if (ro) return;
     const email = e.target.email.value.trim();
     const err = dlg.querySelector('.form-error');
     err.hidden = true;
