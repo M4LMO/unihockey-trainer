@@ -3,7 +3,7 @@
 //  (Screenshots → Claude → Import-Text) + von Hand bearbeiten.
 //
 //  Ansichten (Hash):
-//    #/statistik            Übersicht (Tabs: Matches / Skorer / Goalies / Team)
+//    #/statistik            Übersicht (Tabs: Matches / Skorer / Goalies / Team / Strafen)
 //    #/statistik/<tab>
 //    #/statistik/m/<id>     ein Match (Telegramm, Aufstellung, Plus/Minus)
 //  Ein Match ist ein Match-Einsatz aus dem Linien-Tool.
@@ -13,7 +13,7 @@ import { esc, toast, fehlerText } from './ui.js';
 import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel, ladeIch, sperrGrund } from './kontext.js';
 import * as L from './statistik-logik.js';
 
-const TABS = ['matches', 'skorer', 'goalies', 'team'];
+const TABS = ['matches', 'skorer', 'goalies', 'team', 'strafen'];
 const WETTBEWERB = { meisterschaft: 'Meisterschaft', cup: 'Cup', test: 'Testspiel' };
 const ORT = { heim: 'Heim', auswaerts: 'Auswärts' };
 const ARTEN_LINIE = { linie: 'Linie', pp: 'PP', bp: 'BP', '6v5': '6:5' };
@@ -151,7 +151,7 @@ export async function mount(root) {
   // ==============================================================
   async function zeigeStart(tab) {
     neuLaden = async () => { await ladeBasis(); await zeichne(); };
-    let sort = 'p';
+    let sort = 'p', sortS = 'pim';
 
     async function zeichne() {
       const vereine = new Set(S.st.teams.map(t => t.verein));
@@ -191,6 +191,7 @@ export async function mount(root) {
           <button data-t="skorer" class="${tab === 'skorer' ? 'on' : ''}">Skorer</button>
           <button data-t="goalies" class="${tab === 'goalies' ? 'on' : ''}">Goalies</button>
           <button data-t="team" class="${tab === 'team' ? 'on' : ''}">Team</button>
+          <button data-t="strafen" class="${tab === 'strafen' ? 'on' : ''}">Strafen</button>
         </div>
         <div class="st-tab"><p class="muted pad">Lade …</p></div>`;
       inhalt.querySelector('.st-tabs').onclick = e => {
@@ -208,6 +209,7 @@ export async function mount(root) {
       if (tab === 'matches') tabMatches(ziel, matches);
       else if (tab === 'skorer') await tabSkorer(ziel, matches);
       else if (tab === 'goalies') tabGoalies(ziel, matches);
+      else if (tab === 'strafen') tabStrafen(ziel, matches);
       else tabTeam(ziel, matches);
     }
 
@@ -345,6 +347,111 @@ export async function mount(root) {
           }).join('')}<p class="muted klein"><span class="st-dot f"></span> erzielt <span class="st-dot g"></span> erhalten${gemischt ? ' · Matches mit unterschiedlichem Format gemischt' : ''}</p></div>`
             : '<p class="muted klein">Noch keine Tore erfasst.</p>'}
         </section>`;
+    }
+
+    // ---- Strafen ----------------------------------------------
+    function tabStrafen(ziel, matches) {
+      const R = L.strafenStatistik(matches);
+      const T = R.total;
+      if (!T.matches) { ziel.innerHTML = '<p class="muted pad leer">Noch keine Matches mit Statistik.</p>'; return; }
+      if (!T.n) { ziel.innerHTML = `<p class="muted pad leer">In ${plural(T.matches, 'Match', 'Matches')} keine einzige Strafe. 👏</p>`; return; }
+      const kpi = (wert, text, sub = '') => `<div><b>${wert}</b><small>${text}</small>${sub ? `<em>${sub}</em>` : ''}</div>`;
+      const artText = a => a === 'MS' ? 'MS' : `${a}'`;
+      const artenListe = arten => [...arten.entries()]
+        .sort((a, b) => L.MINUTEN.indexOf(a[0]) - L.MINUTEN.indexOf(b[0]))
+        .map(([a, n]) => `${n}× ${esc(artText(a))}`).join(' · ');
+      const grundText = k => R.gruende.get(k)?.text || 'ohne Grund';
+
+      // Pro Spieler:in (null = Strafe ohne Person, z.B. Bankstrafe → immer zuunterst)
+      const zeigePersonen = () => {
+        const reihen = [...R.personen.entries()].map(([id, x]) => ({ id, x }));
+        const wert = { n: r => r.x.n, pim: r => r.x.pim, gt: r => r.x.gt };
+        reihen.sort((a, b) => (a.id === null) - (b.id === null) || wert[sortS](b) - wert[sortS](a) || b.x.pim - a.x.pim || b.x.n - a.x.n
+          || (kNr(a.id) ?? 99) - (kNr(b.id) ?? 99));
+        const max = Math.max(1, ...reihen.map(r => r.x.pim));
+        const th = (k, t, titel) => `<th class="${sortS === k ? 'on' : ''}" data-s="${k}" title="${titel}">${t}</th>`;
+        const el = ziel.querySelector('.st-str-personen');
+        el.innerHTML = `
+          <table class="st-tab">
+            <thead><tr><th class="li">Spieler:in</th>${th('n', 'Str', 'Anzahl Strafen')}${th('pim', 'Min', 'Strafminuten')}${th('gt', 'GT', 'Gegentore in Unterzahl während dieser Strafen')}</tr></thead>
+            <tbody>${reihen.map(({ id, x }) => {
+              const gr = [...x.gruende.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n > 1 ? `${n}× ` : ''}${esc(grundText(k))}`).join(', ');
+              return `<tr class="${id && S.kMap.get(id)?.aktiv === false ? 'st-inaktiv' : ''}">
+                <td class="li"><span class="st-name">${id ? kLabel(id) : '<span class="st-kl muted">ohne Person (Bank/Team)</span>'}</span>
+                  <span class="st-bar"><i style="width:${Math.round(100 * x.pim / max)}%"></i></span>
+                  <small class="st-str-info">${artenListe(x.arten)}${gr ? ` — ${gr}` : ''}</small></td>
+                <td>${x.n}</td><td class="fett">${x.pim}</td><td class="${x.gt ? 'minus' : ''}">${x.gt || ''}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>`;
+        el.querySelector('thead').onclick = e => {
+          const t = e.target.closest('th[data-s]'); if (!t) return;
+          sortS = t.dataset.s; zeigePersonen();
+        };
+      };
+
+      // Nach Grund
+      const gruende = [...R.gruende.entries()].sort((a, b) => (a[0] === '') - (b[0] === '') || b[1].n - a[1].n || b[1].pim - a[1].pim);
+      const maxG = Math.max(1, ...gruende.map(([, g]) => g.n));
+
+      // Nach Zeitpunkt
+      const nAbsch = Math.max(0, ...R.formate);
+      const keys = [...Array(nAbsch)].map((_, i) => i + 1).concat(R.abschnitte.has('V') ? ['V'] : []);
+      const maxA = Math.max(1, ...R.abschnitte.values());
+      const vorlage = { abschnitte: nAbsch };
+      const absWort = nAbsch === 2 ? 'jeder Halbzeit' : nAbsch === 3 ? 'jedes Drittels' : 'jedes Abschnitts';
+
+      // Pro Match
+      const maxM = Math.max(1, ...R.proMatch.map(x => x.pim));
+
+      const balken = (label, n, max, rechts) => `<div class="st-str-z">
+        <span class="st-str-l">${label}</span>
+        <span class="st-abs-bar s"><i style="width:${Math.round(100 * n / max)}%"></i><b>${rechts ?? n}</b></span></div>`;
+
+      ziel.innerHTML = `
+        <section class="st-karte">
+          <h3 class="gruppe">Übersicht <span>${plural(T.matches, 'Match', 'Matches')}</span></h3>
+          <div class="st-kpis">
+            ${kpi(T.n, 'Strafen', `Ø ${(T.n / T.matches).toFixed(1)} pro Match`)}
+            ${kpi(`${T.pim}'`, 'Strafminuten', `Ø ${(T.pim / T.matches).toFixed(1)}' pro Match`)}
+            ${kpi(T.mitUnterzahl ? `${pct(T.gegentore, T.mitUnterzahl)} %` : '–', 'Strafe → Gegentor',
+              `${plural(T.gegentore, 'Gegentor', 'Gegentore')} nach ${plural(T.mitUnterzahl, 'Strafe', 'Strafen')} mit Unterzahl`)}
+          </div>
+          <p class="muted klein st-str-arten">${artenListe(R.arten)}</p>
+        </section>
+
+        <section class="st-karte">
+          <h3 class="gruppe">Pro Spieler:in</h3>
+          <div class="st-str-personen"></div>
+          <p class="muted klein">Spalte antippen zum Sortieren. <b>GT</b> = Gegentore in Unterzahl, die während dieser Strafen fielen.</p>
+        </section>
+
+        <section class="st-karte">
+          <h3 class="gruppe">Nach Grund</h3>
+          <div class="st-str-balken">${gruende.map(([k, g]) =>
+            balken(k ? esc(g.text) : '<i class="muted">ohne Grund</i>', g.n, maxG, `${g.n}× · ${g.pim}'`)).join('')}</div>
+        </section>
+
+        <section class="st-karte">
+          <h3 class="gruppe">Nach Zeitpunkt</h3>
+          <div class="st-str-balken">${keys.map(k =>
+            balken(k === 'V' ? 'Verl.' : L.abschnittName(k, vorlage).replace('. ', '.&nbsp;'), R.abschnitte.get(k) || 0, maxA)).join('')}</div>
+          <div class="st-kpis klein st-str-zeit">
+            ${kpi(R.frueh, 'erste 5 Min', absWort)}
+            ${kpi(R.spaet, 'letzte 5 Min', absWort)}
+          </div>
+          ${R.formate.size > 1 ? '<p class="muted klein">Matches mit unterschiedlichem Format gemischt.</p>' : ''}
+        </section>
+
+        <section class="st-karte">
+          <h3 class="gruppe">Pro Match</h3>
+          <ul class="st-str-matches">${R.proMatch.map(({ m, n, pim, gt }) => `<li><a href="#/statistik/m/${m.id}">
+            <span class="st-str-ml"><b>${esc(m.titel || 'Match')}</b><small>${esc(datumText(m.datum, false))}${resText(m) ? ` · ${esc(resText(m))}` : ''}</small></span>
+            <span class="st-abs-bar s"><i style="width:${Math.round(100 * pim / maxM)}%"></i><b>${pim}'</b></span>
+            <span class="st-str-mz">${n ? `${n} Str.` : '–'}${gt ? `<em>${gt} GT</em>` : ''}</span>
+          </a></li>`).join('')}</ul>
+        </section>`;
+      zeigePersonen();
     }
 
     await ladeBasis();

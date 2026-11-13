@@ -59,7 +59,7 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - `nummern.js` – andere Rückennummern aus Matches
 - `kader.js` – Tool Kader (Verwaltung Saisons & Teams nur Admin, ohne Löschen; Staff ohne Saison → „beim Admin melden“)
 - `linien.js` + `linien.css` + `linien-auswertung.js` + `linien-ideen.js` – Tool Linien (`docs/linien-spec.md`)
-- `statistik.js` + `statistik.css` + `statistik-logik.js` – Tool Statistik (`docs/statistik-spec.md`)
+- `statistik.js` + `statistik.css` + `statistik-logik.js` – Tool Statistik inkl. Register Strafen (`docs/statistik-spec.md`)
 - `manifest.webmanifest`, `icon.svg`, `icon-180/192/512.png`
 
 ## Backlog (Empfehlung 12.11.)
