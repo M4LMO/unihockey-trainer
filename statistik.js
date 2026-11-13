@@ -41,7 +41,7 @@ const pct = (a, b) => b ? Math.round(100 * a / b) : null;
 function ladeCss() {
   if (document.querySelector('link[data-statistik]')) return;
   const l = document.createElement('link');
-  l.rel = 'stylesheet'; l.href = 'statistik.css'; l.dataset.statistik = '1';
+  l.rel = 'stylesheet'; l.href = 'statistik.css' + (window.APP_V ? `?v=${encodeURIComponent(window.APP_V)}` : ''); l.dataset.statistik = '1';
   document.head.appendChild(l);
 }
 

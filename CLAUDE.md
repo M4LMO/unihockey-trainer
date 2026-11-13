@@ -34,4 +34,5 @@ Tool-Details: `docs/linien-spec.md`, `docs/statistik-spec.md`. SQL-Historie: `sq
 - Neue Tabellen: Bezug zu `kaderlisten`/`einsaetze`, RLS-Policy über passende `darf_*()`-Funktion (nie `using (true)`), Realtime aktivieren, in `TABELLEN` in `admin.js` (Sicherung) eintragen.
 - Vor jedem PR testen: JS-Syntax (`node --check`), Oberfläche im Headless-Browser mit gemocktem Supabase-Modul (CDN abfangen), RLS/SQL lokal mit PGlite (`@electric-sql/pglite`, auth-Schema nachbauen: `auth.users`, `auth.uid()` über `set_config`).
 - Mobile-first (390 px Breite prüfen); Eingabefelder mind. 16 px (kein iPhone-Zoom).
+- **Cache-Busting:** In jedem PR `version.json` erhöhen (`JJJJ-MM-TT.N`). Neue JS-Datei → in `MODULE` in `index.html` eintragen; von Tools geladenes CSS mit `window.APP_V` versionieren.
 - Nach jeder Änderung `docs/vision.md` (und ggf. Specs) aktuell halten.
