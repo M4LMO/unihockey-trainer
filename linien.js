@@ -64,7 +64,7 @@ const plural = (n, ein, mehr) => `${n} ${n === 1 ? ein : mehr}`;
 function ladeCss() {
   if (document.querySelector('link[data-linien]')) return;
   const l = document.createElement('link');
-  l.rel = 'stylesheet'; l.href = 'linien.css'; l.dataset.linien = '1';
+  l.rel = 'stylesheet'; l.href = 'linien.css' + (window.APP_V ? `?v=${encodeURIComponent(window.APP_V)}` : ''); l.dataset.linien = '1';
   document.head.appendChild(l);
 }
 

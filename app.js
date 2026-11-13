@@ -220,3 +220,25 @@ async function teamStart() {
       </div>
     </div>`;
 }
+
+// ---- Neue Version? (version.json, siehe index.html) ---------------
+// Wenn die App lange offen ist (z.B. Handy im Hintergrund), Hinweis zeigen
+// statt automatisch neu zu laden (sonst gingen offene Eingaben verloren).
+let letzterCheck = 0;
+async function pruefeVersion() {
+  if (!window.APP_V || Date.now() - letzterCheck < 60_000) return;
+  letzterCheck = Date.now();
+  try {
+    const r = await fetch('version.json', { cache: 'no-store' });
+    const { v } = await r.json();
+    if (v && v !== window.APP_V && !document.getElementById('update-hinweis')) {
+      const b = document.createElement('button');
+      b.id = 'update-hinweis';
+      b.textContent = '🔄 Neue Version – tippen zum Laden';
+      b.onclick = () => location.reload();
+      document.body.appendChild(b);
+    }
+  } catch { /* offline – später nochmals */ }
+}
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && pruefeVersion());
+setInterval(pruefeVersion, 5 * 60_000);

@@ -15,8 +15,42 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Trainer Tools">
 
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="app.js"></script>
+  <!-- Start mit Versionsnummer (Cache-Busting):
+       version.json wird immer frisch geholt, danach werden ALLE Dateien
+       mit "?v=<Version>" geladen → nie eine Mischung aus alt und neu.
+       ⚠️ Neue JS-Datei? → unten in MODULE eintragen.
+       ⚠️ Bei jedem Pull Request die Version in version.json erhöhen. -->
+  <script>
+    (function () {
+      var MODULE = ['app', 'admin', 'config', 'supabase', 'ui', 'kontext', 'nummern', 'kader',
+        'linien', 'linien-auswertung', 'linien-ideen', 'statistik', 'statistik-logik'];
+      function start(v) {
+        window.APP_V = v || '';
+        var q = v ? '?v=' + encodeURIComponent(v) : '';
+        if (q) {
+          var imports = {};
+          MODULE.forEach(function (m) { imports['./' + m + '.js'] = './' + m + '.js' + q; });
+          var map = document.createElement('script');
+          map.type = 'importmap';
+          map.textContent = JSON.stringify({ imports: imports });
+          document.head.appendChild(map);
+        }
+        var css = document.createElement('link');
+        css.rel = 'stylesheet'; css.href = 'style.css' + q;
+        document.head.appendChild(css);
+        var app = document.createElement('script');
+        app.type = 'module'; app.src = 'app.js' + q;
+        document.head.appendChild(app);
+      }
+      var fertig = false;
+      function einmal(v) { if (!fertig) { fertig = true; start(v); } }
+      setTimeout(function () { einmal(''); }, 4000);   // kein Netz? → ohne Version starten
+      fetch('version.json', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { einmal(j.v); })
+        .catch(function () { einmal(''); });
+    })();
+  </script>
 </head>
 <body>
 

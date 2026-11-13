@@ -14,6 +14,7 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - Hosting: **GitHub Pages** (Branch `main`, Root) → jeder Merge auf `main` ist sofort live.
 - Datenbank + Login: **Supabase** (Gratis-Tier, keine herunterladbaren Backups → eigene Sicherung in der App).
 - App als PWA (Icon auf Homescreen, kein Service Worker).
+- **Cache-Busting:** `index.html` holt `version.json` immer frisch (`no-store`) und lädt dann alle JS-/CSS-Dateien mit `?v=<Version>` (Import-Map, Liste `MODULE` in `index.html`; `window.APP_V`). Ist die App offen und es gibt eine neue Version → Knopf „🔄 Neue Version – tippen zum Laden“ (Check beim Zurückkehren in die App und alle 5 Min). **Bei jedem PR `version.json` erhöhen** (Format `JJJJ-MM-TT.N`); **neue JS-Datei → in `MODULE` eintragen**, CSS aus Tools mit `window.APP_V` laden. Nur `index.html` selbst kann noch bis ~10 Min alt sein (ändert sich selten).
 - Supabase SQL Editor: neuen leeren Tab nehmen; UPDATE zeigt „No rows returned“ auch bei Erfolg; Platzhalter in SQL immer mit Anführungszeichen erklären.
 
 ## Zugang
@@ -50,7 +51,7 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - Oranges Abzeichen „auch #87 (4×)“ (`nummern.js`) in Kader und Linien (Personen + Historie). **Nicht** in der Statistik und nicht in der Linien-Auswertung.
 
 ## Code-Struktur (flach, Vanilla JS ES-Module, kein Build)
-- `index.html`, `style.css` (Vereinsfarbe `--team`), `config.js`, `supabase.js` (supabase-js v2 via jsDelivr), `ui.js` (esc, toast, fehlerText)
+- `index.html` (Start mit Version, Import-Map), `version.json`, `style.css` (Vereinsfarbe `--team`), `config.js`, `supabase.js` (supabase-js v2 via jsDelivr), `ui.js` (esc, toast, fehlerText)
 - `app.js` – Auth, Routing: Admin `#/` → admin.js, `#/team` → Tool-Kacheln; Staff `#/` → Tool-Kacheln. Nur fertige Tools als Kacheln (`soon` wird ausgeblendet). Neue Tools in `TOOLS`; Modul exportiert `mount(container)` → Aufräumfunktion. Auth-Callback ruft zeigeApp über setTimeout auf. 🔑-Knopf „Passwort ändern“.
 - `admin.js` – Hauptseite (nur Admin), CSS selbst eingefügt. Bestätigungsdialog `frage({titel, html, knopf, tippen})`. Papierkorb = `geloescht_am`; endgültig = delete nur nach Namen eintippen. 💾 Sicherung: alle Tabellen in `TABELLEN` (paginiert à 1000) als JSON `trainer-tools-sicherung-1`. Wiederherstellen aus Datei gibt es (noch) nicht.
 - `kontext.js` – ladeStammdaten({mitGeloeschten}) (Standard: Papierkorb ausgeblendet), ladeKader(listeId), get/setAuswahl() (localStorage: saisonId, teamId), naechsteSaison(), teamLabel(), ladeIch() ({admin, teamId, email, ohneZugang, nurLesen}), vergissIch(), sperrGrund(saison, ich) (Banner-Text, '' = darf ändern)
@@ -61,7 +62,6 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - `manifest.webmanifest`, `icon.svg`, `icon-180/192/512.png`
 
 ## Backlog (Empfehlung 12.11.)
-- [ ] Cache-Busting (Versionsnummer an Import-Pfaden; GitHub Pages cached ~10 min)
 - [ ] Präsenz (anwesend/abwesend/entschuldigt, **keine Gründe**) → Linien-Tool nur Anwesende
 - [ ] Trainingsplanung + Übungsbibliothek
 - [ ] Taktikboard (Skizzen in Übungen wiederverwendbar)
