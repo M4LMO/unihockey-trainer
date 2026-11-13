@@ -1,4 +1,4 @@
-# Statistik-Tool – Spezifikation (Stand 12.11.2026, mit Marc abgestimmt)
+# Statistik-Tool – Spezifikation (Stand 13.11.2026, mit Marc abgestimmt)
 
 ## Ziel
 Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude liest aus → Import in die App), händisch korrigier-/ergänzbar, und sinnvoll ins Linien-Tool einfliessen lassen.
@@ -49,5 +49,15 @@ Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude lie
 - Swiss-Unihockey-App: Match facts zeigt Tore (Zeit, Schütz:in, Assist) und Spielabschnitte; Lineup zeigt Linien + Kaderliste (Nr, Name, Position).
 
 ## Ansichten
-- Übersicht: Saison/Team wie Kader; Tabs **Matches** (S/U/N, Resultat, Statistik-Status), **Skorer** (Sp, T, A, P, Strafminuten, +/−, sortierbar), **Goalies** (Spiele, Spielzeit, Gegentore, GT/60'), **Team** (Bilanz, PP/BP-Quote, Strafminuten, Tore pro Abschnitt).
+- Übersicht: Saison/Team wie Kader; Tabs **Matches** (S/U/N, Resultat, Statistik-Status), **Skorer** (Sp, T, A, P, Strafminuten, +/−, sortierbar), **Goalies** (Spiele, Spielzeit, Gegentore, GT/60'), **Team** (Bilanz, PP/BP-Quote, Strafminuten, Tore pro Abschnitt), **Strafen** (siehe unten).
+
+## Register «Strafen» (13.11.2026, mit Marc abgestimmt)
+- Nur **eigene** Strafen (keine Gegner-Strafen). Kein SQL nötig – rechnet aus `match_ereignisse` (`strafenStatistik` in `statistik-logik.js`).
+- **Übersicht:** Anzahl Strafen, Strafminuten (je Ø pro Match), Quote «Strafe → Gegentor», Strafarten (2', 2+2, 10' …). Gezählt werden nur Matches mit Statistik.
+- **Pro Spieler:in** (sortierbar: Str / Min / GT): Strafarten und **Gründe mit Namen** (Wunsch Marc). Strafen ohne Person = «ohne Person (Bank/Team)», immer zuunterst.
+- **Nach Grund:** Rangliste (Gross-/Kleinschreibung egal), «ohne Grund» zuunterst.
+- **Nach Zeitpunkt:** pro Drittel/Halbzeit (+ Verlängerung) und erste/letzte 5 Min eines Abschnitts.
+- **Pro Match:** Strafminuten als Balken, Anzahl, GT; antippen → Match.
+- **Folgen (GT):** Ein Gegentor in Unterzahl wird der Strafe zugerechnet, die es beendet (2'); sonst der zuerst ablaufenden (5' / MS). 2+2 kann zwei GT haben. 10' hat keine Unterzahl und zählt nicht in der Quote (`zeitleiste().folgen`).
+
 - Match: Resultat + PP/BP/Strafminuten, Aufstellung (bearbeiten, Goalie/Start), Telegramm nach Abschnitt (Ereignis antippen → bearbeiten inkl. Version/Linie), ＋ Ereignis, Import (neu), Statistik löschen, Link zu den Linien.

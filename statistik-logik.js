@@ -59,6 +59,14 @@ function strafTeile(min) {
   if (m === '2' || m === '2+10') return [[120, true]];
   return [];
 }
+// Bringt die Strafe eine Unterzahl? (10' nicht)
+export const strafeMitUnterzahl = min => strafTeile(min).length > 0;
+// Einheitliche Schreibweise der Strafart (für Gruppierung)
+export function strafArt(min) {
+  const m = String(min ?? '').trim().toUpperCase().replace(/\s+/g, '').replace(/['’]/g, '');
+  if (m.startsWith('MS')) return 'MS';
+  return MINUTEN.includes(m) ? m : (m || '?');
+}
 export function strafMinuten(min) {
   const m = String(min ?? '').trim().toUpperCase();
   if (m.startsWith('MS')) return 25;   // Matchstrafe: Person 20 + Team 5 → für Statistik als 25 gezählt
@@ -67,7 +75,8 @@ export function strafMinuten(min) {
 
 // ---- Zeitleiste: Situation bei jedem Tor, PP/BP-Bilanz --------
 // ereignisse: [{id, art, zeit, kader_id, situation, minuten}]
-// Rückgabe: { sit: Map(id → situation), pp: {chancen, tore, gegentore, starts}, bp: {chancen, gegentore, tore, starts}, leer: {tore, gegentore} }
+// Rückgabe: { sit: Map(id → situation), pp: {chancen, tore, gegentore, starts}, bp: {chancen, gegentore, tore, starts}, leer: {tore, gegentore},
+//            folgen: Map(id eigene Strafe → Gegentore in Unterzahl, die dieser Strafe zugerechnet werden) }
 // starts = Spielzeiten, an denen ein Powerplay/Boxplay begonnen hat
 export function zeitleiste(ereignisse) {
   const liste = [...ereignisse].sort((a, b) => a.zeit - b.zeit || rang(a) - rang(b));
@@ -75,6 +84,7 @@ export function zeitleiste(ereignisse) {
   const eigen = team(), gegner = team();
   let goalieRaus = false;
   const sit = new Map();
+  const folgen = new Map();
   const R = { pp: { chancen: 0, tore: 0, gegentore: 0, starts: [] }, bp: { chancen: 0, gegentore: 0, tore: 0, starts: [] }, leer: { tore: 0, gegentore: 0 } };
   let zustand = 'eq';
 
@@ -117,10 +127,11 @@ export function zeitleiste(ereignisse) {
   let aktuelleZeit = 0;
   const beendeFrueheste = s => {
     const p = s.aktiv.filter(x => x.frueh).sort((a, b) => a.ende - b.ende)[0];
-    if (!p) return;
+    if (!p) return null;
     const naechst = p.rest.shift();
     if (naechst) { p.ende = aktuelleZeit + naechst[0]; p.frueh = naechst[1]; }   // 2+2: zweite Strafe beginnt jetzt
     else s.aktiv = s.aktiv.filter(x => x !== p);
+    return p;
   };
 
   liste.forEach((ev, i) => {
@@ -139,14 +150,18 @@ export function zeitleiste(ereignisse) {
         if (s === 'bp') R.bp.gegentore++;
         if (s === 'pp') R.pp.gegentore++;
         if (goalieRaus) R.leer.gegentore++;
-        if (strafSit === 'bp') beendeFrueheste(eigen);
+        if (strafSit === 'bp') {
+          // Gegentor der Strafe zurechnen, die es beendet (2'), sonst der zuerst ablaufenden (5' / MS)
+          const p = beendeFrueheste(eigen) || [...eigen.aktiv].sort((a, b) => a.ende - b.ende)[0];
+          if (p?.id != null) folgen.set(p.id, (folgen.get(p.id) || 0) + 1);
+        }
       }
       pruefeWechsel();
     } else if (ev.art === 'strafe' || ev.art === 'gegnerstrafe') {
       const teile = strafTeile(ev.minuten);
       if (teile.length) {
         const [d, frueh] = teile.shift();
-        (ev.art === 'strafe' ? eigen : gegner).aktiv.push({ ende: ev.zeit + d, frueh, rest: teile });
+        (ev.art === 'strafe' ? eigen : gegner).aktiv.push({ id: ev.id, ende: ev.zeit + d, frueh, rest: teile });
       }
       // Gleichzeitige Strafen beider Teams zuerst alle eintragen, dann prüfen
       const n = liste[i + 1];
@@ -155,7 +170,7 @@ export function zeitleiste(ereignisse) {
       goalieRaus = !ev.kader_id;
     }
   });
-  return { sit, ...R };
+  return { sit, folgen, ...R };
 }
 // Bei gleicher Zeit: Tore vor Strafen, Goalie-Wechsel zuerst
 const rang = e => e.art === 'goalie' ? 0 : (e.art === 'tor' || e.art === 'gegentor') ? 1 : 2;
@@ -300,4 +315,62 @@ export function personenStatistik(matches, linienSpieler = new Map()) {
     }
   }
   return { P, pmErfasst, pmTotal };
+}
+
+// ---- Strafen-Auswertung (Register «Strafen») ------------------
+// matches: [{…einsatz, match_ereignisse}]
+// Rückgabe: {
+//   total: {n, pim, mitUnterzahl, gegentore, matches},
+//   arten: Map(art → n),
+//   personen: Map(kader_id | null → {n, pim, gt, arten: Map, gruende: Map(grund-key → n)}),   null = ohne Person (Bank-/Teamstrafe)
+//   gruende: Map(grund-key (klein) → {n, pim, text}),   '' = ohne Grund
+//   abschnitte: Map(1|2|3|'V' → n), formate: Set(Anzahl Abschnitte),
+//   spaet: n (letzte 5 Min eines Abschnitts), frueh: n (erste 5 Min),
+//   proMatch: [{m, n, pim, gt}]
+// }
+export function strafenStatistik(matches) {
+  const R = {
+    total: { n: 0, pim: 0, mitUnterzahl: 0, gegentore: 0, matches: 0 },
+    arten: new Map(), personen: new Map(), gruende: new Map(),
+    abschnitte: new Map(), formate: new Set(), spaet: 0, frueh: 0, proMatch: [],
+  };
+  const plus = (map, key, n = 1) => map.set(key, (map.get(key) || 0) + n);
+  for (const m of matches) {
+    const ev = m.match_ereignisse || [];
+    const strafen = ev.filter(e => e.art === 'strafe');
+    const hatStatistik = !!(m.stat_am || ev.length);
+    if (hatStatistik) { R.total.matches++; R.formate.add(abschnittZahl(m)); }
+    if (!strafen.length) { if (hatStatistik) R.proMatch.push({ m, n: 0, pim: 0, gt: 0 }); continue; }
+    const { folgen } = zeitleiste(ev);
+    const pm = { m, n: 0, pim: 0, gt: 0 };
+    const absLen = abschnittMin(m) * 60;
+    for (const e of strafen) {
+      const pim = strafMinuten(e.minuten), art = strafArt(e.minuten), gt = folgen.get(e.id) || 0;
+      R.total.n++; R.total.pim += pim; R.total.gegentore += gt;
+      if (strafeMitUnterzahl(e.minuten)) R.total.mitUnterzahl++;
+      plus(R.arten, art);
+      pm.n++; pm.pim += pim; pm.gt += gt;
+
+      const key = e.kader_id || null;
+      let p = R.personen.get(key);
+      if (!p) R.personen.set(key, p = { n: 0, pim: 0, gt: 0, arten: new Map(), gruende: new Map() });
+      p.n++; p.pim += pim; p.gt += gt; plus(p.arten, art);
+
+      const text = String(e.grund ?? '').trim().replace(/\s+/g, ' ');
+      const gKey = text.toLowerCase() || '';
+      if (text) plus(p.gruende, gKey);   // Anzeige-Text über R.gruende.get(key).text
+      const g = R.gruende.get(gKey) || { n: 0, pim: 0, text: text ? text.charAt(0).toUpperCase() + text.slice(1) : '' };
+      g.n++; g.pim += pim; R.gruende.set(gKey, g);
+
+      const a = abschnittVon(e.zeit, m);
+      plus(R.abschnitte, a);
+      if (a !== 'V') {
+        const inAbs = e.zeit - (a - 1) * absLen;
+        if (inAbs >= absLen - 300) R.spaet++;
+        else if (inAbs < 300) R.frueh++;
+      }
+    }
+    R.proMatch.push(pm);
+  }
+  return R;
 }
