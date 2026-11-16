@@ -51,6 +51,11 @@ Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude lie
 ## Ansichten
 - Übersicht: Saison/Team wie Kader; Tabs **Matches** (S/U/N, Resultat, Statistik-Status), **Skorer** (Sp, T, A, P, +/−, sortierbar; Strafminuten seit 16.11. nur im Register Strafen), **Goalies** (Spiele, Spielzeit, Gegentore, GT/60'), **Team** (Bilanz, PP/BP-Quote, Strafminuten, Tore pro Abschnitt), **Strafen** (siehe unten).
 
+## Wettbewerb-Umschalter (16.11.2026, Wunsch Marc)
+- Unter den Tabs: **Meisterschaft** (Standard) · **Cup** · **Testspiele**. Alle Zahlen (Skorer, Goalies, Team, Strafen) zählen **nur den gewählten Wettbewerb**. Match ohne Wettbewerb-Angabe = Meisterschaft.
+- Tab Matches zeigt immer alle Matches; die nicht gewählten sind grau mit «zählt hier nicht (…)» (bleiben bearbeitbar).
+- Wahl wird pro Gerät gemerkt (`localStorage` `wbFilter`) und gilt auch im Tool Analyse. Code: `WB_FILTER`, `wettbewerbVon`, `imWettbewerb`, `wbUmschalter` in `statistik-logik.js`.
+
 ## Register «Strafen» (13.11.2026, mit Marc abgestimmt)
 - Nur **eigene** Strafen (keine Gegner-Strafen). Kein SQL nötig – rechnet aus `match_ereignisse` (`strafenStatistik` in `statistik-logik.js`).
 - **Übersicht:** Anzahl Strafen, Strafminuten (je Ø pro Match), Quote «Strafe → Gegentor», Strafarten (2', 2+2, 10' …). Gezählt werden nur Matches mit Statistik.

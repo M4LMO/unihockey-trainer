@@ -151,7 +151,7 @@ export async function mount(root) {
   // ==============================================================
   async function zeigeStart(tab) {
     neuLaden = async () => { await ladeBasis(); await zeichne(); };
-    let sort = 'p', sortS = 'pim';
+    let sort = 'p', sortS = 'pim', wb = L.getWbFilter();
 
     async function zeichne() {
       const vereine = new Set(S.st.teams.map(t => t.verein));
@@ -193,7 +193,12 @@ export async function mount(root) {
           <button data-t="team" class="${tab === 'team' ? 'on' : ''}">Team</button>
           <button data-t="strafen" class="${tab === 'strafen' ? 'on' : ''}">Strafen</button>
         </div>
+        ${L.wbUmschalter(wb, 'st-wb')}
         <div class="st-tab"><p class="muted pad">Lade …</p></div>`;
+      inhalt.querySelector('.st-wb').onclick = e => {
+        const b = e.target.closest('button'); if (!b) return;
+        wb = b.dataset.wb; L.setWbFilter(wb); zeichne();
+      };
       inhalt.querySelector('.st-tabs').onclick = e => {
         const b = e.target.closest('button'); if (!b) return;
         tab = b.dataset.t;
@@ -205,8 +210,9 @@ export async function mount(root) {
       fab.onclick = () => importDialog();
 
       const ziel = inhalt.querySelector('.st-tab');
-      const matches = await ladeMatches(S.liste.id);
-      if (tab === 'matches') tabMatches(ziel, matches);
+      const alle = await ladeMatches(S.liste.id);
+      const matches = alle.filter(L.imWettbewerb(wb));   // gezählt wird nur der gewählte Wettbewerb
+      if (tab === 'matches') tabMatches(ziel, alle);
       else if (tab === 'skorer') await tabSkorer(ziel, matches);
       else if (tab === 'goalies') tabGoalies(ziel, matches);
       else if (tab === 'strafen') tabStrafen(ziel, matches);
@@ -219,12 +225,14 @@ export async function mount(root) {
         <ul class="st-liste">${matches.map(m => {
           const r = ergebnis(m), tore = m.match_ereignisse.filter(e => e.art === 'tor' || e.art === 'gegentor').length;
           const info = [datumText(m.datum), m.ort ? ORT[m.ort] : null, m.wettbewerb ? WETTBEWERB[m.wettbewerb] : null].filter(Boolean).join(' · ');
-          return `<li><a class="karte" href="#/statistik/m/${m.id}">
+          const zaehlt = L.wettbewerbVon(m) === wb;
+          return `<li class="${zaehlt ? '' : 'st-zaehlt-nicht'}"><a class="karte" href="#/statistik/m/${m.id}">
             <span class="nr st-erg ${r || 'leer'}">${r ? r.toUpperCase() : '–'}</span>
             <span class="info"><strong>${esc(m.titel || 'Match')}${resText(m) ? ` <span class="st-res">${esc(resText(m))}</span>` : ''}</strong>
               <small>${esc(info)}</small>
               <small class="${m.stat_am || tore ? 'st-ok' : 'st-fehlt'}">${m.stat_am || tore || m.match_aufstellung.length
-                ? `📊 ${m.match_aufstellung.length} Personen · ${tore} Tore erfasst` : 'noch keine Statistik'}</small></span>
+                ? `📊 ${m.match_aufstellung.length} Personen · ${tore} Tore erfasst` : 'noch keine Statistik'}</small>
+              ${zaehlt ? '' : `<small class="st-zn">zählt hier nicht (${esc(WETTBEWERB[L.wettbewerbVon(m)])})</small>`}</span>
           </a></li>`;
         }).join('')}</ul>`
         : `<p class="muted pad leer">Noch keine Matches.${nurLesen() ? '' : '<br>Tippe auf <b>＋</b> und füge den Import-Text von Claude ein.'}</p>`;
