@@ -1,4 +1,4 @@
-# Trainer Tools – Vision & Technik (Stand 16.11.2026, Team-Umbau)
+# Trainer Tools – Vision & Technik (Stand 16.11.2026, Meine Stats)
 
 ## Ziel
 Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Unihockey vereinfacht. Tools werden Stück für Stück erarbeitet und in die App eingebettet.
@@ -18,7 +18,7 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - Supabase SQL Editor: neuen leeren Tab nehmen; UPDATE zeigt „No rows returned“ auch bei Erfolg; Platzhalter in SQL immer mit Anführungszeichen erklären.
 
 ## Zugang
-- **Admin (Marc)**: sieht alles. Startseite `#/` = **Hauptseite** (`admin.js`): Teams anlegen/umbenennen/in Papierkorb, Saisons anlegen/archivieren/in Papierkorb, Papierkorb (wiederherstellen / endgültig löschen mit Namen eintippen), Staff-Logins pro Team, 👀 Zuschauer-Logins, 💾 Sicherung. „Öffnen →“ setzt Team-Auswahl und geht auf `#/team` (Team-Startseite, „← Alle Teams“).
+- **Admin (Marc)**: sieht alles. Startseite `#/` = **Hauptseite** (`admin.js`): Teams anlegen/umbenennen/in Papierkorb, Saisons anlegen/archivieren/in Papierkorb, Papierkorb (wiederherstellen / endgültig löschen mit Namen eintippen), Staff-Logins pro Team, 👀 Zuschauer-Logins, 💾 Sicherung, Kachel **🏅 Meine Stats** (persönliche Statistik, `docs/meinestats-spec.md`; nur Admin + Zuschauer:in). „Öffnen →“ setzt Team-Auswahl und geht auf `#/team` (Team-Startseite, „← Alle Teams“).
 - **Team ist in den Tools fix** (16.11., Wunsch Marc): Kader, Linien, Statistik, Analyse zeigen oben „← Teamname“ (zurück zur Team-Startseite) und nur die Saisons, in denen dieses Team einen Kader hat. Kein Teamwechsel in den Tools – nur über die Hauptseite. **Team-Startseite** (`teamseite.js`): Saison wählen (Chips) + Kader-Info, Admin: **＋ Neue Saison** für dieses Team (bestehende Saison zuordnen oder neu anlegen, Kader aus früherer Saison übernehmen oder leer), darunter die Tool-Kacheln. Saisons archivieren/löschen und Teams verwalten nur auf der Hauptseite.
 - **Staff: individuelle Logins** (eigene E-Mail pro Person), beliebig viele pro Team; **ein Login = genau ein Team** (Erweiterung auf mehrere Teams pro Login möglich, falls nötig). Startseite = Tool-Kacheln des eigenen Teams. Sieht per RLS nur das eigene Team (nicht, wenn Team im Papierkorb). **Keine Teams/Saisons/Kaderlisten ändern** (neue Saison für ein Team = neuer Kader → immer Admin; Staff sieht „Bitte beim Admin melden“).
 - **Rechte pro Staff-Login** (SQL 07, im 🔑-Staff-Dialog umschaltbar): **✏️ Darf bearbeiten** = Kader, Linien, Statistik im eigenen Team ändern · **👀 Nur lesen** = alles sehen, nichts ändern (Banner, Bearbeiten-Knöpfe ausgeblendet). DB-sicher über RLS.
@@ -45,7 +45,8 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - Linien-Tool (SQL 03): `einsaetze`, `varianten`, `linien`, `linien_spieler`, `chemie` – Details in `docs/linien-spec.md`.
 - Statistik-Tool (SQL 04): `einsaetze` + tore_fuer, tore_gegen, abschnitte, abschnitt_min, stat_am; `match_aufstellung` (nummer = Nummer in diesem Match), `match_ereignisse`, `su_zuordnung` – Details in `docs/statistik-spec.md`.
 - **RLS:** pro Tabelle 4 Policies „Lesen“ (`darf_*`) / „Anlegen“ / „Ändern“ / „Löschen“ (`darf_*_schreiben`) (teams: lesen darf_team, schreiben Admin; saisons: lesen alle, schreiben Admin; kaderlisten: lesen darf_team, schreiben nur Admin; zugang: eigenen lesen, Admin alles). **Neue Tabellen** brauchen diese 4 Policies mit den passenden `darf_*`-Funktionen – NICHT `using (true)`! Im UI `sperrGrund(saison, ich)` aus `kontext.js` für `nurLesen()` verwenden. Dazu Realtime aktivieren und die Tabelle in `TABELLEN` in `admin.js` (Sicherung) eintragen. Löschen kaskadiert.
-- SQL-Historie in `sql/`: 01 kader, 02 Saison/Team, 03 Linien, 04 Statistik, 05 Zugang, 06 Papierkorb, 07 Rechte (Nur lesen, Archiv-Sperre, Kaderlisten nur Admin), 08 Zuschauer:in. **Nächste freie Nummer: 09.**
+- Meine Stats (SQL 09): `ms_vereine`, `ms_hallen`, `ms_abschnitte`, `ms_spiele`, `ms_tabellen` – persönlich, ohne Team-Bezug; Lesen `sieht_alles()`, Schreiben `ist_admin()`. Details `docs/meinestats-spec.md`.
+- SQL-Historie in `sql/`: 01 kader, 02 Saison/Team, 03 Linien, 04 Statistik, 05 Zugang, 06 Papierkorb, 07 Rechte (Nur lesen, Archiv-Sperre, Kaderlisten nur Admin), 08 Zuschauer:in, 09 Meine Stats (10 = einmaliger Daten-Import, nicht im Repo). **Nächste freie Nummer: 11.**
 
 ## Rückennummern pro Match
 - Kader-Nummer = normale Nummer. Abweichende Nummer pro Match in `match_aufstellung.nummer`.
@@ -62,6 +63,7 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - `kader.js` – Tool Kader (Personen des Teams pro Saison; Saisons/Teams werden nicht mehr hier verwaltet)
 - `linien.js` + `linien.css` + `linien-auswertung.js` + `linien-ideen.js` – Tool Linien (`docs/linien-spec.md`)
 - `statistik.js` + `statistik.css` + `statistik-logik.js` – Tool Statistik inkl. Register Strafen (`docs/statistik-spec.md`)
+- `meinestats.js` + `meinestats.css` + `meinestats-logik.js` – Meine Stats (Trainer/Spieler/Fan, Vereine/Hallen-Stamm mit Alias + Zusammenführen)
 - `analyse.js` + `analyse.css` + `analyse-logik.js` – Tool Analyse: Torzeiten, Matchverlauf, Saison-Form (nur Ansicht, `docs/analyse-spec.md`)
 - `manifest.webmanifest`, `icon.svg`, `icon-180/192/512.png`
 
