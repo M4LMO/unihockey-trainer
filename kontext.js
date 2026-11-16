@@ -3,6 +3,7 @@
 //  und die aktuelle Auswahl (Saison + Team) auf diesem Gerät.
 // ============================================================
 import { sb } from './supabase.js';
+import { esc } from './ui.js';
 
 const SPEICHER = 'tt-auswahl';
 
@@ -52,6 +53,47 @@ export function naechsteSaison(saisons) {
 }
 
 export const teamLabel = t => t ? `${t.verein} – ${t.name}` : '';
+
+// ---- Team-Kontext für die Tools ----------------------------------
+// Das Team ist in den Tools FIX: gewählt auf der Hauptseite («Öffnen →»),
+// bei Staff immer das eigene Team. Gewechselt wird nur über die Hauptseite.
+// Saisons = nur die, in denen dieses Team einen Kader hat (neueste zuerst).
+// wunsch: { teamId?, saisonId? } (z.B. aus einer Kaderliste, wenn ein Match direkt geöffnet wird)
+export function waehleTeamKontext(st, wunsch = {}) {
+  const a = getAuswahl();
+  const team = st.teams.find(t => t.id === (wunsch.teamId || a.teamId))
+    || (st.teams.length === 1 ? st.teams[0] : null);
+  const listen = team ? st.listen.filter(l => l.team_id === team.id) : [];
+  const saisons = st.saisons.filter(s => listen.some(l => l.saison_id === s.id));
+  const sId = wunsch.saisonId || a.saisonId;
+  const saison = saisons.find(s => s.id === sId) || saisons.find(s => !s.archiviert) || saisons[0] || null;
+  const liste = saison ? listen.find(l => l.saison_id === saison.id) : null;
+  if (team) setAuswahl({ teamId: team.id, ...(saison ? { saisonId: saison.id } : {}) });
+  return { team, saisons, saison, liste };
+}
+
+// Kopf in den Tools: «← Team» (zurück zur Team-Startseite) + Saison-Auswahl (nur Saisons dieses Teams)
+export function kontextKopf(team, saisons, saisonId) {
+  const opt = s => `<option value="${s.id}" ${s.id === saisonId ? 'selected' : ''}>${esc(s.name)}</option>`;
+  const aktiv = saisons.filter(s => !s.archiviert), archiv = saisons.filter(s => s.archiviert);
+  return `
+    ${team ? `<a class="team-kopf" href="#/team"><span>←</span> ${esc(teamLabel(team))}</a>` : ''}
+    ${saisons.length ? `<div class="kontext">
+      <label class="sel-wrap">Saison
+        <select class="sel-saison">
+          ${aktiv.map(opt).join('')}${archiv.length ? `<optgroup label="📦 Archiv">${archiv.map(opt).join('')}</optgroup>` : ''}
+        </select>
+      </label>
+    </div>` : ''}`;
+}
+
+// Hinweis, wenn kein Team gewählt ist oder das Team noch keine Saison/keinen Kader hat
+export function keinKaderHinweis(team) {
+  if (!team) return `<div class="hinweis"><p>Kein Team gewählt.</p><a class="btn primary" href="#/">Zur Übersicht</a></div>`;
+  return `<div class="hinweis"><p><b>${esc(teamLabel(team))}</b> hat noch keine Saison.</p>
+    <p class="muted klein">Saisons für dieses Team werden auf der Team-Startseite angelegt (Admin).</p>
+    <a class="btn primary" href="#/team">Zur Team-Startseite</a></div>`;
+}
 
 // ---- Wer bin ich? (Admin, Zuschauer:in oder Staff eines Teams) ---
 let ichCache = null;

@@ -30,7 +30,7 @@ Tool-Details: `docs/linien-spec.md`, `docs/statistik-spec.md`, `docs/analyse-spe
 
 ## Technik-Regeln
 - Flaches Vanilla-JS mit ES-Modulen, **kein Build-Schritt**, keine Frameworks. Neue Tools als eigene Datei(en) (`xyz.js`, ggf. `xyz.css`, das die JS-Datei selbst lädt), mit `export async function mount(container)` → Aufräumfunktion, eingetragen in `TOOLS` in `app.js`.
-- Saison/Team-Auswahl und Rolle immer über `kontext.js` (`ladeStammdaten`, `ladeKader`, `getAuswahl`/`setAuswahl`, `ladeIch`).
+- Saison/Team-Auswahl und Rolle immer über `kontext.js` (`ladeStammdaten`, `ladeKader`, `waehleTeamKontext`, `kontextKopf`, `setAuswahl`, `ladeIch`). **Team ist in Tools fix** (kein Teamwechsel, nur über Hauptseite).
 - Neue Tabellen: Bezug zu `kaderlisten`/`einsaetze`, RLS-Policy über passende `darf_*()`-Funktion (nie `using (true)`), Realtime aktivieren, in `TABELLEN` in `admin.js` (Sicherung) eintragen.
 - Vor jedem PR testen: JS-Syntax (`node --check`), Oberfläche im Headless-Browser mit gemocktem Supabase-Modul (CDN abfangen), RLS/SQL lokal mit PGlite (`@electric-sql/pglite`, auth-Schema nachbauen: `auth.users`, `auth.uid()` über `set_config`).
 - Mobile-first (390 px Breite prüfen); Eingabefelder mind. 16 px (kein iPhone-Zoom).

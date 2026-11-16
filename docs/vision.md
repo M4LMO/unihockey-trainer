@@ -1,4 +1,4 @@
-# Trainer Tools – Vision & Technik (Stand 16.11.2026)
+# Trainer Tools – Vision & Technik (Stand 16.11.2026, Team-Umbau)
 
 ## Ziel
 Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Unihockey vereinfacht. Tools werden Stück für Stück erarbeitet und in die App eingebettet.
@@ -18,7 +18,8 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - Supabase SQL Editor: neuen leeren Tab nehmen; UPDATE zeigt „No rows returned“ auch bei Erfolg; Platzhalter in SQL immer mit Anführungszeichen erklären.
 
 ## Zugang
-- **Admin (Marc)**: sieht alles. Startseite `#/` = **Hauptseite** (`admin.js`): Teams anlegen/umbenennen/in Papierkorb, Saisons anlegen/archivieren/in Papierkorb, Papierkorb (wiederherstellen / endgültig löschen mit Namen eintippen), Staff-Logins pro Team, 👀 Zuschauer-Logins, 💾 Sicherung. „Öffnen →“ setzt Team-Auswahl und geht auf `#/team` (Tool-Kacheln, „← Alle Teams“).
+- **Admin (Marc)**: sieht alles. Startseite `#/` = **Hauptseite** (`admin.js`): Teams anlegen/umbenennen/in Papierkorb, Saisons anlegen/archivieren/in Papierkorb, Papierkorb (wiederherstellen / endgültig löschen mit Namen eintippen), Staff-Logins pro Team, 👀 Zuschauer-Logins, 💾 Sicherung. „Öffnen →“ setzt Team-Auswahl und geht auf `#/team` (Team-Startseite, „← Alle Teams“).
+- **Team ist in den Tools fix** (16.11., Wunsch Marc): Kader, Linien, Statistik, Analyse zeigen oben „← Teamname“ (zurück zur Team-Startseite) und nur die Saisons, in denen dieses Team einen Kader hat. Kein Teamwechsel in den Tools – nur über die Hauptseite. **Team-Startseite** (`teamseite.js`): Saison wählen (Chips) + Kader-Info, Admin: **＋ Neue Saison** für dieses Team (bestehende Saison zuordnen oder neu anlegen, Kader aus früherer Saison übernehmen oder leer), darunter die Tool-Kacheln. Saisons archivieren/löschen und Teams verwalten nur auf der Hauptseite.
 - **Staff: individuelle Logins** (eigene E-Mail pro Person), beliebig viele pro Team; **ein Login = genau ein Team** (Erweiterung auf mehrere Teams pro Login möglich, falls nötig). Startseite = Tool-Kacheln des eigenen Teams. Sieht per RLS nur das eigene Team (nicht, wenn Team im Papierkorb). **Keine Teams/Saisons/Kaderlisten ändern** (neue Saison für ein Team = neuer Kader → immer Admin; Staff sieht „Bitte beim Admin melden“).
 - **Rechte pro Staff-Login** (SQL 07, im 🔑-Staff-Dialog umschaltbar): **✏️ Darf bearbeiten** = Kader, Linien, Statistik im eigenen Team ändern · **👀 Nur lesen** = alles sehen, nichts ändern (Banner, Bearbeiten-Knöpfe ausgeblendet). DB-sicher über RLS.
 - **Archivierte Saison** ist in der DB gesperrt – auch für den Admin (zum Ändern zuerst reaktivieren).
@@ -53,11 +54,12 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 
 ## Code-Struktur (flach, Vanilla JS ES-Module, kein Build)
 - `index.html` (Start mit Version, Import-Map), `version.json`, `style.css` (Vereinsfarbe `--team`), `config.js`, `supabase.js` (supabase-js v2 via jsDelivr), `ui.js` (esc, toast, fehlerText)
-- `app.js` – Auth, Routing: Admin `#/` → admin.js, `#/team` → Tool-Kacheln; Staff `#/` → Tool-Kacheln. Nur fertige Tools als Kacheln (`soon` wird ausgeblendet). Neue Tools in `TOOLS`; Modul exportiert `mount(container)` → Aufräumfunktion. Auth-Callback ruft zeigeApp über setTimeout auf. 🔑-Knopf „Passwort ändern“.
+- `app.js` – Auth, Routing: Admin `#/` → admin.js, `#/team` → Team-Startseite (`teamseite.js`); Staff `#/` → Team-Startseite. Nur fertige Tools als Kacheln (`soon` wird ausgeblendet). Neue Tools in `TOOLS`; Modul exportiert `mount(container)` → Aufräumfunktion. Auth-Callback ruft zeigeApp über setTimeout auf. 🔑-Knopf „Passwort ändern“.
 - `admin.js` – Hauptseite (nur Admin), CSS selbst eingefügt. Bestätigungsdialog `frage({titel, html, knopf, tippen})`. Papierkorb = `geloescht_am`; endgültig = delete nur nach Namen eintippen. 💾 Sicherung: alle Tabellen in `TABELLEN` (paginiert à 1000) als JSON `trainer-tools-sicherung-1`. Wiederherstellen aus Datei gibt es (noch) nicht.
-- `kontext.js` – ladeStammdaten({mitGeloeschten}) (Standard: Papierkorb ausgeblendet), ladeKader(listeId), get/setAuswahl() (localStorage: saisonId, teamId), naechsteSaison(), teamLabel(), ladeIch() ({admin, teamId, email, ohneZugang, nurLesen, zuschauer}; „voller Admin“ = admin && !nurLesen), vergissIch(), sperrGrund(saison, ich) (Banner-Text, '' = darf ändern)
+- `kontext.js` – ladeStammdaten({mitGeloeschten}) (Standard: Papierkorb ausgeblendet), ladeKader(listeId), get/setAuswahl() (localStorage: saisonId, teamId), naechsteSaison(), teamLabel(), ladeIch() ({admin, teamId, email, ohneZugang, nurLesen, zuschauer}; „voller Admin“ = admin && !nurLesen), vergissIch(), sperrGrund(saison, ich) (Banner-Text, '' = darf ändern), **waehleTeamKontext(st, wunsch)** → {team, saisons (nur des Teams), saison, liste} (Team fix aus Auswahl), **kontextKopf(team, saisons, saisonId)** (Kopf «← Team» + Saison-Select `.sel-saison`), **keinKaderHinweis(team)**
+- `teamseite.js` – Team-Startseite: Saison-Chips, neue Saison für das Team (Admin), Tool-Kacheln
 - `nummern.js` – andere Rückennummern aus Matches
-- `kader.js` – Tool Kader (Verwaltung Saisons & Teams nur Admin, ohne Löschen; Staff ohne Saison → „beim Admin melden“)
+- `kader.js` – Tool Kader (Personen des Teams pro Saison; Saisons/Teams werden nicht mehr hier verwaltet)
 - `linien.js` + `linien.css` + `linien-auswertung.js` + `linien-ideen.js` – Tool Linien (`docs/linien-spec.md`)
 - `statistik.js` + `statistik.css` + `statistik-logik.js` – Tool Statistik inkl. Register Strafen (`docs/statistik-spec.md`)
 - `analyse.js` + `analyse.css` + `analyse-logik.js` – Tool Analyse: Torzeiten, Matchverlauf, Saison-Form (nur Ansicht, `docs/analyse-spec.md`)

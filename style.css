@@ -105,6 +105,28 @@ a.tile:active { transform: scale(.98); }
 .tile-icon { font-size: 1.8rem; }
 .tile small { color: var(--muted); }
 .tile.soon { opacity: .55; }
+
+/* ---- Team-Startseite + fixes Team in den Tools ---- */
+.zurueck { display: inline-block; margin: 4px 0 6px; color: var(--muted); text-decoration: none; font-weight: 600; }
+.home h2.team-titel { color: var(--text); font-size: 1.25rem; margin: 4px 0 12px; }
+.team-saison {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px 14px; margin-bottom: 14px; display: grid; gap: 8px;
+}
+.team-saison-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.team-saison h3 { margin: 0; font-size: 1rem; }
+.team-saison .team-chips { padding: 2px; }
+.team-saison .chip small { display: inline; margin-left: 4px; }
+.team-neu { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+.team-neu input, .team-neu select { font-size: 16px; }
+.team-kopf {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  margin: 0 0 10px; padding: 6px 12px; border-radius: 99px;
+  background: var(--card); box-shadow: var(--shadow); color: var(--text);
+  font-weight: 700; font-size: .9rem; text-decoration: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.team-kopf span { color: var(--team); }
 .badge {
   position: absolute; top: 10px; right: 10px; font-size: .7rem; font-weight: 700;
   background: var(--line); color: var(--muted); padding: 2px 8px; border-radius: 99px;
