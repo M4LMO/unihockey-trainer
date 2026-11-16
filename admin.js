@@ -14,6 +14,7 @@ const USERS_LINK = `https://supabase.com/dashboard/project/${PROJEKT}/auth/users
 const TABELLEN = [
   'teams', 'saisons', 'kaderlisten', 'kader', 'einsaetze', 'varianten', 'linien',
   'linien_spieler', 'chemie', 'match_aufstellung', 'match_ereignisse', 'su_zuordnung', 'zugang',
+  'ms_vereine', 'ms_hallen', 'ms_abschnitte', 'ms_spiele', 'ms_tabellen',   // Meine Stats
 ];
 
 const datum = iso => iso ? new Date(iso).toLocaleDateString('de-CH') : '';
@@ -29,6 +30,8 @@ function stil() {
     .adm-teams { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
     .adm-team { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: grid; gap: 8px; border: 2px solid transparent; }
     .adm-team:hover { border-color: var(--team); }
+    .adm-meinestats { display: flex; align-items: center; gap: 14px; }
+    .adm-meinestats span:last-child { display: grid; gap: 2px; }
     .adm-team .oeffnen { all: unset; cursor: pointer; display: grid; gap: 2px; }
     .adm-team .oeffnen small { color: var(--muted); }
     .adm-team .oeffnen strong { font-size: 1.15rem; }
@@ -72,6 +75,13 @@ export async function mount(root) {
     <div class="home adm ${ro ? 'adm-ro' : ''}">
       ${ro ? `<div class="banner">${esc(sperrGrund(null, ich))}</div>` : ''}
       <section>
+        <a class="tile adm-meinestats" href="#/meinestats">
+          <span class="tile-icon">🏅</span>
+          <span><strong>Meine Stats</strong><small>Meine Spiele als Trainer, Spieler und Fan – Bilanzen, Gegner, Hallen</small></span>
+        </a>
+      </section>
+
+      <section>
         <h2>🏒 Meine Teams</h2>
         <div class="adm-teams"><p class="muted">Lade …</p></div>
         <form class="adm-neu f-team">
@@ -111,7 +121,7 @@ export async function mount(root) {
       <section class="sec-sicherung">
         <h2>💾 Sicherung</h2>
         <div class="adm-sicherung">
-          <p class="klein">Lädt <b>alle Daten</b> (alle Teams, Saisons, Kader, Linien, Statistiken) als Datei herunter.
+          <p class="klein">Lädt <b>alle Daten</b> (alle Teams, Saisons, Kader, Linien, Statistiken, Meine Stats) als Datei herunter.
             Am besten ab und zu machen – z.B. vor grösseren Änderungen oder am Saisonende.</p>
           <div><button class="btn primary small btn-sicherung">💾 Sicherung herunterladen</button></div>
         </div>
@@ -220,6 +230,8 @@ export async function mount(root) {
     location.hash = '#/team';
   }
 
+  // Klick-Handler beim Verlassen der Seite wieder entfernen (#view wird von den Tools weiterverwendet)
+  const weg = new AbortController();
   root.addEventListener('click', async e => {
     const o = e.target.closest('.oeffnen');
     if (o) return oeffne(o.dataset.id);
@@ -311,7 +323,7 @@ export async function mount(root) {
 
     if (error) return toast(fehlerText(error), 'error');
     await laden();
-  });
+  }, { signal: weg.signal });
 
   $('.f-team').addEventListener('submit', async e => {
     e.preventDefault();
@@ -366,6 +378,7 @@ export async function mount(root) {
         const rows = [];
         for (let von = 0; ; von += 1000) {
           const { data, error } = await sb.from(tab).select('*').range(von, von + 999);
+          if (error && tab.startsWith('ms_') && /PGRST205|42P01|does not exist/i.test(`${error.code} ${error.message}`)) break; // Meine Stats noch nicht eingerichtet
           if (error) throw error;
           rows.push(...data);
           if (data.length < 1000) break;
@@ -484,7 +497,7 @@ export async function mount(root) {
   });
 
   await laden();
-  return () => {};
+  return () => weg.abort();
 }
 
 function frageDialogHTML() {

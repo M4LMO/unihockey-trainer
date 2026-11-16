@@ -1,0 +1,201 @@
+// ============================================================
+//  Meine Stats – Rechnen (ohne Oberfläche, testbar mit node)
+// ============================================================
+
+export const BEREICHE = {
+  trainer: { name: 'Trainer', icon: '🎽', lang: 'Als Trainer' },
+  spieler: { name: 'Spieler', icon: '🥅', lang: 'Als Spieler (Goalie)' },
+  fan:     { name: 'Fan',     icon: '👀', lang: 'Als Fan' },
+};
+
+export const SPIELARTEN = {
+  meisterschaft: 'Meisterschaft',
+  cup: 'Cup',
+  test: 'Testspiel',
+  turnier: 'Turnier (Gruppe)',
+  ko: 'Turnier (K.o./Tableau)',
+  playoff: 'Playoff',
+  abstieg: 'Auf-/Abstieg',
+  laenderspiel: 'Länderspiel',
+};
+
+export const ICH = {
+  trainer: { dabei: 'Dabei', nicht: 'Nicht dabei' },
+  spieler: { tor: 'Im Tor', ersatz: 'Ersatz (Matchblatt)', nicht: 'Nicht dabei' },
+};
+
+// Wie wird gezählt?
+//  meine:  Trainer «dabei», Spieler «im Tor», Fan alle
+//  blatt:  zusätzlich Spieler als Ersatz auf dem Matchblatt
+//  alle:   alle Spiele des Teams (auch ohne mich)
+export const MODI = {
+  meine: 'Nur meine Spiele (Trainer dabei / im Tor)',
+  blatt: 'Inkl. Ersatz auf dem Matchblatt',
+  alle: 'Alle Spiele des Teams',
+};
+
+export function zaehlt(spiel, bereich, modus = 'meine') {
+  if (spiel.abgesagt) return false;
+  if (bereich === 'fan' || modus === 'alle') return true;
+  if (bereich === 'trainer') return spiel.ich !== 'nicht';
+  if (modus === 'blatt') return spiel.ich === 'tor' || spiel.ich === 'ersatz';
+  return spiel.ich === 'tor';
+}
+
+// Text für Suche vergleichbar machen: klein, ohne Akzente, ohne Satzzeichen
+export function norm(s) {
+  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Vereine suchen (Name + Aliase). Treffer am Wortanfang zuerst.
+export function sucheVereine(vereine, text, max = 8) {
+  const q = norm(text);
+  if (!q) return [];
+  const punkte = v => {
+    let best = 0;
+    for (const n of [v.name, ...(v.aliase || [])]) {
+      const x = norm(n);
+      if (x === q) return 4;
+      if (x.startsWith(q)) best = Math.max(best, 3);
+      else if ((' ' + x).includes(' ' + q)) best = Math.max(best, 2);
+      else if (x.includes(q)) best = Math.max(best, 1);
+    }
+    return best;
+  };
+  return vereine.map(v => [v, punkte(v)]).filter(([, p]) => p > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].name.localeCompare(b[0].name, 'de'))
+    .slice(0, max).map(([v]) => v);
+}
+// Genau dieser Name (oder Alias)?
+export function findeVerein(vereine, text) {
+  const q = norm(text);
+  if (!q) return null;
+  return vereine.find(v => norm(v.name) === q) || vereine.find(v => (v.aliase || []).some(a => norm(a) === q)) || null;
+}
+
+export const halleText = h => h ? (h.name ? `${h.ort}, ${h.name}` : h.ort) : '';
+export function sucheHallen(hallen, text, max = 8) {
+  const q = norm(text);
+  if (!q) return [];
+  return hallen.map(h => {
+    const x = norm(halleText(h));
+    const p = x === q ? 4 : x.startsWith(q) ? 3 : norm(h.name).startsWith(q) ? 3 : (' ' + x).includes(' ' + q) ? 2 : x.includes(q) ? 1 : 0;
+    return [h, p];
+  }).filter(([, p]) => p > 0)
+    .sort((a, b) => b[1] - a[1] || halleText(a[0]).localeCompare(halleText(b[0]), 'de'))
+    .slice(0, max).map(([h]) => h);
+}
+export function findeHalle(hallen, text) {
+  const q = norm(text);
+  return q ? hallen.find(h => norm(halleText(h)) === q) || null : null;
+}
+// «Konolfingen, SLM Arena» → { ort, name }
+export function teileHalle(text) {
+  const t = String(text || '').trim();
+  const i = t.indexOf(',');
+  return i < 0 ? { ort: t, name: '' } : { ort: t.slice(0, i).trim(), name: t.slice(i + 1).trim() };
+}
+
+// Resultat aus meiner Sicht: 's' | 'u' | 'n' | null
+export function ergebnis(sp) {
+  if (sp.abgesagt || sp.tore1 == null || sp.tore2 == null) return null;
+  return sp.tore1 > sp.tore2 ? 's' : sp.tore1 < sp.tore2 ? 'n' : 'u';
+}
+export function resultatText(sp) {
+  if (sp.tore1 == null || sp.tore2 == null) return '';
+  return `${sp.tore1}:${sp.tore2}${sp.entscheid === 'nv' ? ' n.V.' : sp.entscheid === 'np' ? ' n.P.' : ''}`;
+}
+
+// Saison/Jahr sortierbar machen: "2023/24" → 2023, "2025" → 2025 (Turnierjahr zählt wie Saison 2024/25 → 2024.5)
+export function saisonSchluessel(s) {
+  const t = String(s || '');
+  let m = /^(\d{4})\s*\/\s*\d{2,4}/.exec(t);
+  if (m) return +m[1];
+  m = /^(\d{2})\s*\/\s*\d{2}$/.exec(t);
+  if (m) return 2000 + +m[1];
+  m = /(\d{4})/.exec(t);
+  return m ? +m[1] - 0.5 : 0;
+}
+// Abschnitte: neueste zuerst
+export function sortiereAbschnitte(liste) {
+  return [...liste].sort((a, b) => saisonSchluessel(b.saison) - saisonSchluessel(a.saison)
+    || String(a.kategorie || '').localeCompare(String(b.kategorie || ''), 'de')
+    || String(a.erstellt_am || '').localeCompare(String(b.erstellt_am || '')));
+}
+// Spiele: nach Datum/Zeit, ohne Datum (z.B. abgesagt) ans Ende
+export function sortiereSpiele(liste) {
+  return [...liste].sort((a, b) => {
+    if (!a.datum !== !b.datum) return a.datum ? -1 : 1;
+    return String(a.datum || '').localeCompare(String(b.datum || ''))
+      || String(a.zeit || '').localeCompare(String(b.zeit || ''))
+      || String(a.erstellt_am || '').localeCompare(String(b.erstellt_am || ''));
+  });
+}
+
+// Bilanz einer Liste eigener Spiele (nur Spiele mit Resultat)
+export function bilanz(spiele) {
+  const b = { sp: 0, s: 0, u: 0, n: 0, snv: 0, nnv: 0, t: 0, gt: 0, zuNull: 0, offen: 0 };
+  for (const x of spiele) {
+    const e = ergebnis(x);
+    if (!e) { if (!x.abgesagt) b.offen++; continue; }
+    b.sp++; b[e]++;
+    if (x.entscheid && e === 's') b.snv++;
+    if (x.entscheid && e === 'n') b.nnv++;
+    b.t += x.tore1; b.gt += x.tore2;
+    if (x.tore2 === 0) b.zuNull++;
+  }
+  b.quote = b.sp ? Math.round(100 * b.s / b.sp) : 0;
+  b.schnittT = b.sp ? b.t / b.sp : 0;
+  b.schnittGT = b.sp ? b.gt / b.sp : 0;
+  return b;
+}
+
+// Schlussrang aus der Rangtabelle (Zeile «eigenes»)
+export function schlussrang(tabellenZeilen, abschnittId) {
+  const zeilen = tabellenZeilen.filter(z => z.abschnitt_id === abschnittId);
+  const eigene = zeilen.filter(z => z.eigenes && z.rang != null);
+  return eigene.map(z => ({ titel: z.titel, rang: z.rang, von: zeilen.filter(x => x.titel === z.titel).length }));
+}
+
+// Gegner-Bilanz über alle eigenen Spiele (nach Verein)
+export function gegnerBilanz(spiele) {
+  const map = new Map();
+  for (const x of spiele) {
+    if (!x.gegner_id) continue;
+    if (!map.has(x.gegner_id)) map.set(x.gegner_id, []);
+    map.get(x.gegner_id).push(x);
+  }
+  return [...map.entries()].map(([id, liste]) => {
+    const sortiert = sortiereSpiele(liste);
+    return { id, spiele: sortiert, ...bilanz(liste), anzahl: liste.length, letztes: sortiert.filter(s => s.datum).at(-1)?.datum || null };
+  });
+}
+
+// Zählen nach Schlüssel (z.B. Halle, Liga) → [{ key, n }] absteigend
+export function zaehle(liste, keyFn) {
+  const m = new Map();
+  for (const x of liste) {
+    const k = keyFn(x);
+    if (k == null || k === '') continue;
+    m.set(k, (m.get(k) || 0) + 1);
+  }
+  return [...m.entries()].map(([key, n]) => ({ key, n })).sort((a, b) => b.n - a.n || String(a.key).localeCompare(String(b.key), 'de'));
+}
+
+// Alter in Jahren/Monaten/Tagen ist bewusst nicht drin (kein Geburtsdatum gespeichert).
+
+// Datum "2026-11-08" → "Sa 8.11.26"
+const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+export function datumKurz(d, mitTag = true) {
+  if (!d) return '';
+  const [y, m, t] = d.split('-').map(Number);
+  return `${mitTag ? WT[new Date(y, m - 1, t).getDay()] + ' ' : ''}${t}.${m}.${String(y).slice(2)}`;
+}
+export function datumLang(d) {
+  if (!d) return '';
+  const [y, m, t] = d.split('-').map(Number);
+  return `${t}.${m}.${y}`;
+}
+export const zeitKurz = z => z ? String(z).slice(0, 5) : '';
+export const zahl1 = x => (Math.round(x * 100) / 100).toLocaleString('de-CH', { maximumFractionDigits: 2 });

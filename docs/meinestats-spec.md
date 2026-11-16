@@ -1,0 +1,30 @@
+# Meine Stats – Spezifikation (Stand 16.11.2026)
+
+## Ziel
+Marcs persönliche Statistik (bisher OneNote): eigene Spiele **als Trainer**, **als Spieler (Goalie)** und **als Fan**, mit Rangtabellen und Auswertungen. Unabhängig von den Teams/Kadern der App.
+
+## Zugang
+- Kachel **🏅 Meine Stats** oben auf der Hauptseite (`admin.js`), Route `#/meinestats` (in `TOOLS` mit `persoenlich: true` → nicht auf der Team-Startseite).
+- Lesen: Admin + Zuschauer:in (`sieht_alles()`), Schreiben: nur voller Admin (`ist_admin()`). Staff sieht nichts.
+- Ausnahme zur Regel «neue Tabellen mit Bezug zu kaderlisten/einsaetze»: die Daten sind persönlich, nicht teambezogen.
+
+## Datenmodell (SQL 09)
+- `ms_vereine` (name unique, land, aliase[]) – jeder Verein nur einmal; andere Schreibweisen als Alias (Suche findet Name + Alias, ohne Akzente/Gross-klein).
+- `ms_hallen` (ort, name; unique) – «Ort, Halle».
+- `ms_abschnitte` = eine Saison/ein Turnierjahr mit einem Team: bereich (trainer|spieler|fan), saison (frei: «2023/24» oder «2025»), kategorie (Meisterschaft, Prague Games …), verein_id, team, gruppe, staff (Text), notiz, geloescht_am (Papierkorb).
+- `ms_spiele`: teil (Unterabschnitt, z.B. «La Saga Tenero»), datum, zeit, halle_id, livestream, eigene Spiele: gegner_id + gegner_zusatz (z.B. «U17»), Fan: heim_id/gast_id + liga; tore1/tore2 (= wir/Gegner bzw. Heim/Gast), entscheid (nv|np), spielart (meisterschaft, cup, test, turnier, ko, playoff, abstieg, laenderspiel), ich (Trainer: dabei|nicht; Spieler: tor|ersatz|nicht), abgesagt, notiz.
+- `ms_tabellen`: Rangtabellen-Zeilen pro Abschnitt (titel trennt mehrere Tabellen), rang, verein_id, team (Zusatz), eigenes, sp, s, u, snv, nnv, n, tore, gegentore, punkte (leere Spalten werden nicht angezeigt).
+- In der 💾 Sicherung enthalten. Realtime aktiv.
+
+## Ansichten
+- **Übersicht:** Spiele erlebt total; Trainer (Spiele dabei, S/U/N, Siegquote, Tore), Goalie (Matchblatt, im Tor, Ersatz, Bilanz im Tor, Gegentore + Ø, Zu-Null, erstes Spiel), Fan (Spiele, Halle/Livestream, meistgesehenes Team, Tore); zuletzt gespielte Spiele.
+- **Spiele:** Trainer/Spieler/Fan, aufklappbare Blöcke pro Saison/Team (Gruppe, Staff, Notiz, Spiele, Rangtabellen). Admin: ＋ Spiel, ＋ Rangtabelle, ✏️ Saison/Team (🗑 → Papierkorb), runder ＋ = neue Saison/Team.
+- **Auswertung:** Filter Bereich, Saison, «Zählen» (nur meine Spiele = Trainer dabei / im Tor · inkl. Ersatz · alle Teamspiele), Spielarten. Bilanz pro Saison/Team (mit Schlussrang), Gegner-Bilanz (Suche, Sortierung, aufklappbar mit Spielen), Fan: Ligen + meistgesehene Teams, Hallen & Orte.
+- **Verwaltung:** Vereine & Hallen bearbeiten, **zusammenführen** (alles geht an den Ziel-Eintrag, alter Name wird Alias), Papierkorb (wiederherstellen / endgültig mit Eintippen).
+- Resultatfarben: Sieg grün, Niederlage rot, Unentschieden orange; n.V./n.P. zählen als Sieg/Niederlage (separat ausgewiesen).
+
+## Dateien
+`meinestats.js` (Oberfläche), `meinestats.css`, `meinestats-logik.js` (Rechnen, Suche; ohne Oberfläche).
+
+## Startdaten
+Einmaliger Import aus dem OneNote-PDF (13 Saisons/Teams, 187 Spiele, 65 Tabellenzeilen) – bewusst **nicht im Repo** (öffentlich, enthält Staff-Namen); SQL wurde Marc direkt gegeben.

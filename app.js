@@ -14,6 +14,7 @@ import * as linien from './linien.js';
 import * as statistik from './statistik.js';
 import * as analyse from './analyse.js';
 import * as teamseite from './teamseite.js';
+import * as meinestats from './meinestats.js';
 
 // ---- Liste aller Tools ---------------------------------------
 // Neue Tools werden hier eingetragen (soon: true = noch in Arbeit, wird auf der Startseite ausgeblendet)
@@ -25,6 +26,8 @@ const TOOLS = [
   { id: 'statistik', name: 'Statistik',        icon: '📊', desc: 'Tore, Strafen, Skorer',     modul: statistik },
   { id: 'analyse',   name: 'Analyse',          icon: '📈', desc: 'Torzeiten, Matchverlauf, Form', modul: analyse },
   { id: 'training',  name: 'Trainingsplanung', icon: '🗓️', desc: 'Übungen & Lektionen',       soon: true },
+  // persönlich: nicht auf der Team-Startseite, nur für Admin + Zuschauer:in (Kachel auf der Hauptseite)
+  { id: 'meinestats', name: 'Meine Stats',     icon: '🏅', desc: 'Trainer, Spieler, Fan',     modul: meinestats, persoenlich: true },
 ];
 
 const $ = sel => document.querySelector(sel);
@@ -178,7 +181,7 @@ async function route() {
   }
 
   const id = location.hash.replace(/^#\/?/, '').split('/')[0];
-  const tool = TOOLS.find(t => t.id === id && t.modul);
+  const tool = TOOLS.find(t => t.id === id && t.modul && (!t.persoenlich || ich?.admin));
 
   if (!tool) {
     $('#page-title').textContent = '';
@@ -203,7 +206,7 @@ async function route() {
 async function teamStart() {
   try {
     aufraeumen = await teamseite.mount(view(), {
-      tools: TOOLS.filter(t => t.modul && !t.soon),
+      tools: TOOLS.filter(t => t.modul && !t.soon && !t.persoenlich),
       zurueck: !!ich?.admin && !ich.alt,
     });
   } catch (e) { view().innerHTML = `<p class="error pad">Fehler: ${esc(fehlerText(e))}</p>`; }
