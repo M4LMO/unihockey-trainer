@@ -197,7 +197,7 @@ export async function mount(root) {
         <div class="st-tab"><p class="muted pad">Lade …</p></div>`;
       inhalt.querySelector('.st-wb').onclick = e => {
         const b = e.target.closest('button'); if (!b) return;
-        wb = b.dataset.wb; L.setWbFilter(wb); zeichne();
+        wb = L.wbKlick(wb, b.dataset.wb); L.setWbFilter(wb); zeichne();
       };
       inhalt.querySelector('.st-tabs').onclick = e => {
         const b = e.target.closest('button'); if (!b) return;
@@ -211,7 +211,7 @@ export async function mount(root) {
 
       const ziel = inhalt.querySelector('.st-tab');
       const alle = await ladeMatches(S.liste.id);
-      const matches = alle.filter(L.imWettbewerb(wb));   // gezählt wird nur der gewählte Wettbewerb
+      const matches = alle.filter(L.imWettbewerb(wb));   // gezählt werden nur die gewählten Wettbewerbe
       if (tab === 'matches') tabMatches(ziel, alle);
       else if (tab === 'skorer') await tabSkorer(ziel, matches);
       else if (tab === 'goalies') tabGoalies(ziel, matches);
@@ -225,7 +225,7 @@ export async function mount(root) {
         <ul class="st-liste">${matches.map(m => {
           const r = ergebnis(m), tore = m.match_ereignisse.filter(e => e.art === 'tor' || e.art === 'gegentor').length;
           const info = [datumText(m.datum), m.ort ? ORT[m.ort] : null, m.wettbewerb ? WETTBEWERB[m.wettbewerb] : null].filter(Boolean).join(' · ');
-          const zaehlt = L.wettbewerbVon(m) === wb;
+          const zaehlt = wb.includes(L.wettbewerbVon(m));
           return `<li class="${zaehlt ? '' : 'st-zaehlt-nicht'}"><a class="karte" href="#/statistik/m/${m.id}">
             <span class="nr st-erg ${r || 'leer'}">${r ? r.toUpperCase() : '–'}</span>
             <span class="info"><strong>${esc(m.titel || 'Match')}${resText(m) ? ` <span class="st-res">${esc(resText(m))}</span>` : ''}</strong>

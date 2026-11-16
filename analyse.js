@@ -107,7 +107,7 @@ export async function mount(root) {
       S.matches = data.sort((a, b) => b.datum.localeCompare(a.datum) || String(b.erstellt_am).localeCompare(String(a.erstellt_am)));
     }
   }
-  const gefiltert = () => S.matches.filter(m => L.wettbewerbVon(m) === filter.wettbewerb && (!filter.ort || m.ort === filter.ort));
+  const gefiltert = () => S.matches.filter(m => L.imWettbewerb(filter.wettbewerb)(m) && (!filter.ort || m.ort === filter.ort));
 
   // ---- Live-Updates + Grösse ändern ------------------------------
   let timer, rTimer;
@@ -170,7 +170,7 @@ export async function mount(root) {
     };
     inhalt.querySelector('.an-wb').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
-      filter.wettbewerb = b.dataset.wb; L.setWbFilter(filter.wettbewerb); zeichne();
+      filter.wettbewerb = L.wbKlick(filter.wettbewerb, b.dataset.wb); L.setWbFilter(filter.wettbewerb); zeichne();
     };
     inhalt.querySelector('.an-ort').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -186,7 +186,7 @@ export async function mount(root) {
     history.replaceState(null, '', tab === 'tore' ? '#/analyse' : tab === 'verlauf' && matchId ? `#/analyse/verlauf/${matchId}` : `#/analyse/${tab}`);
     const ms = gefiltert();
     if (!ms.some(A.hatTore) && tab !== 'saison') {
-      ziel.innerHTML = `<p class="muted pad leer">${S.matches.length ? `Keine Matches mit erfassten Toren (${esc(WETTBEWERB[filter.wettbewerb])}${filter.ort ? `, ${filter.ort === 'heim' ? 'Heim' : 'Auswärts'}` : ''}).`
+      ziel.innerHTML = `<p class="muted pad leer">${S.matches.length ? `Keine Matches mit erfassten Toren (${esc(L.wbText(filter.wettbewerb))}${filter.ort ? `, ${filter.ort === 'heim' ? 'Heim' : 'Auswärts'}` : ''}).`
         : 'Noch keine Matches.'}<br>Tore werden im Tool <a href="#/statistik">Statistik</a> erfasst.</p>`;
       return;
     }

@@ -22,18 +22,34 @@ export const ART = {
 };
 export const MINUTEN = ['2', '2+2', '5', '10', '2+10', 'MS'];
 
-// ---- Wettbewerb-Umschalter (Statistik + Analyse) ---------------
-// Gezählt wird immer nur ein Wettbewerb. Match ohne Angabe = Meisterschaft.
+// ---- Wettbewerb-Auswahl (Statistik + Analyse) -----------------
+// Mehrere Wettbewerbe wählbar (wb = Array der Schlüssel), Standard nur Meisterschaft.
+// Match ohne Angabe = Meisterschaft.
 export const WB_FILTER = [['meisterschaft', 'Meisterschaft'], ['cup', 'Cup'], ['test', 'Testspiele']];
+const WB_KEYS = WB_FILTER.map(([k]) => k);
+const WB_STANDARD = ['meisterschaft'];
 export const wettbewerbVon = m => m?.wettbewerb || 'meisterschaft';
-export const imWettbewerb = wb => m => wettbewerbVon(m) === wb;
+export const imWettbewerb = wb => m => wb.includes(wettbewerbVon(m));
+export const wbAlle = wb => WB_KEYS.every(k => wb.includes(k));
+const wbOrdnen = wb => WB_KEYS.filter(k => wb.includes(k));
 export function getWbFilter() {
-  try { const v = localStorage.getItem('wbFilter'); if (WB_FILTER.some(([k]) => k === v)) return v; } catch { /* egal */ }
-  return 'meisterschaft';
+  try {
+    const v = wbOrdnen(String(localStorage.getItem('wbFilter') || '').split(','));
+    if (v.length) return v;
+  } catch { /* egal */ }
+  return [...WB_STANDARD];
 }
-export function setWbFilter(v) { try { localStorage.setItem('wbFilter', v); } catch { /* egal */ } }
-export const wbUmschalter = (wb, klasse = '') => `<div class="seg wb-seg ${klasse}" role="group" aria-label="Wettbewerb">${WB_FILTER
-  .map(([k, t]) => `<button data-wb="${k}" class="${wb === k ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+export function setWbFilter(wb) { try { localStorage.setItem('wbFilter', wb.join(',')); } catch { /* egal */ } }
+// Klick auf einen Knopf → neue Auswahl. «alle» wählt alles; der letzte aktive Knopf lässt sich nicht abwählen.
+export function wbKlick(wb, key) {
+  if (key === 'alle') return [...WB_KEYS];
+  const neu = wb.includes(key) ? wb.filter(k => k !== key) : [...wb, key];
+  return neu.length ? wbOrdnen(neu) : wb;
+}
+export const wbText = wb => wbAlle(wb) ? 'alle Wettbewerbe' : WB_FILTER.filter(([k]) => wb.includes(k)).map(([, t]) => t).join(' + ');
+export const wbUmschalter = (wb, klasse = '') => `<div class="seg wb-seg ${klasse}" role="group" aria-label="Wettbewerbe (mehrere wählbar)">
+  <button data-wb="alle" class="wb-alle ${wbAlle(wb) ? 'on' : ''}" aria-pressed="${wbAlle(wb)}">Alle</button>${WB_FILTER
+  .map(([k, t]) => `<button data-wb="${k}" class="${wb.includes(k) ? 'on' : ''}" aria-pressed="${wb.includes(k)}">${t}</button>`).join('')}</div>`;
 
 // ---- Zeit ------------------------------------------------------
 export function zeitText(sek) {
