@@ -119,8 +119,10 @@ a.tile:active { transform: scale(.98); }
 .seg button.on { background: #fff; color: var(--text); box-shadow: var(--shadow); }
 /* Wettbewerb-Umschalter (Statistik + Analyse) */
 .wb-seg { display: flex; width: 100%; }
-.wb-seg button { flex: 1; padding: 6px 4px; font-size: .82rem; }
+.wb-seg button { flex: 1 1 auto; padding: 6px 4px; font-size: .82rem; }
+.wb-seg button.wb-alle { flex: 0 0 auto; padding: 6px 12px; }
 .wb-seg button.on { color: var(--team); }
+.wb-seg button.on:not(.wb-alle)::before { content: '✓ '; }
 
 /* ---- Kader ---- */
 .kader { padding: 14px; }
