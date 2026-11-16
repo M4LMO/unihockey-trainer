@@ -36,7 +36,7 @@ Einsatz (Training | Match | Testspiel)
 - Gleiche Person in mehreren Linien derselben Version: erlaubt, Hinweis „2×“.
 - Keine Abwesenheit; stattdessen Liste „nicht eingeteilt“. Bedienung: Posten antippen → Person wählen.
 - Archivierte Saison: nur ansehen. Kader-Person mit Linien-Historie: **Löschen gesperrt**, nur inaktiv setzen.
-- Mehrere Teams: Team-Chips oben in der Linien-Übersicht (gleiche Auswahl wie Kader).
+- Mehrere Teams: Team ist fix (gewählt auf der Hauptseite), oben «← Team» + Saison des Teams (seit 16.11.).
 - Tabs: **Einsätze · Personen · Auswertung · 💡 Ideen**. Person: Einsätze, Training/Match, PP/BP, häufigste Partner:innen, Verlauf.
 
 ## Auswertung (`linien-auswertung.js`)

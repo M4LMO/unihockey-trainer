@@ -7,12 +7,13 @@
 import { sb } from './supabase.js';
 import { APP_NAME } from './config.js';
 import { esc, toast, fehlerText } from './ui.js';
-import { ladeIch, vergissIch, getAuswahl, setAuswahl, teamLabel } from './kontext.js';
+import { ladeIch, vergissIch, setAuswahl } from './kontext.js';
 import * as admin from './admin.js';
 import * as kader from './kader.js';
 import * as linien from './linien.js';
 import * as statistik from './statistik.js';
 import * as analyse from './analyse.js';
+import * as teamseite from './teamseite.js';
 
 // ---- Liste aller Tools ---------------------------------------
 // Neue Tools werden hier eingetragen (soon: true = noch in Arbeit, wird auf der Startseite ausgeblendet)
@@ -198,29 +199,14 @@ async function route() {
   }
 }
 
-// Startseite eines Teams: Kacheln der Tools
+// Startseite eines Teams: Saison + Kacheln der Tools (teamseite.js)
 async function teamStart() {
-  let titel = '';
   try {
-    const { data } = await sb.from('teams').select('*');
-    const teams = data || [];
-    const t = teams.find(x => x.id === getAuswahl().teamId) || teams[0];
-    if (t) { setAuswahl({ teamId: t.id }); titel = teamLabel(t); }
-  } catch {}
-  const zurueck = ich?.admin && !ich.alt;
-  view().innerHTML = `
-    <div class="home">
-      ${zurueck ? '<a href="#/" class="zurueck">← Alle Teams</a>' : ''}
-      <h2>${titel ? esc(titel) : 'Tools'}</h2>
-      <div class="tiles">
-        ${TOOLS.filter(t => t.modul && !t.soon).map(t => `
-          <a class="tile" href="#/${t.id}">
-            <span class="tile-icon">${t.icon}</span>
-            <strong>${esc(t.name)}</strong>
-            <small>${esc(t.desc)}</small>
-          </a>`).join('')}
-      </div>
-    </div>`;
+    aufraeumen = await teamseite.mount(view(), {
+      tools: TOOLS.filter(t => t.modul && !t.soon),
+      zurueck: !!ich?.admin && !ich.alt,
+    });
+  } catch (e) { view().innerHTML = `<p class="error pad">Fehler: ${esc(fehlerText(e))}</p>`; }
 }
 
 // ---- Neue Version? (version.json, siehe index.html) ---------------

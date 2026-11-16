@@ -9,7 +9,7 @@
 // ============================================================
 import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
-import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel } from './kontext.js';
+import { ladeStammdaten, ladeKader, setAuswahl, waehleTeamKontext, kontextKopf, keinKaderHinweis } from './kontext.js';
 import * as L from './statistik-logik.js';
 import * as A from './analyse-logik.js';
 
@@ -91,13 +91,9 @@ export async function mount(root) {
 
   async function ladeBasis() {
     S.st = await ladeStammdaten();
-    const a = getAuswahl();
-    const sOk = id => S.st.saisons.some(s => s.id === id);
-    const tOk = id => S.st.teams.some(t => t.id === id);
-    S.saisonId = sOk(S.saisonId) ? S.saisonId : sOk(a.saisonId) ? a.saisonId
-      : (S.st.saisons.find(s => !s.archiviert) || S.st.saisons[0])?.id ?? null;
-    S.teamId = tOk(S.teamId) ? S.teamId : tOk(a.teamId) ? a.teamId : S.st.teams[0]?.id ?? null;
-    S.liste = S.st.listen.find(l => l.saison_id === S.saisonId && l.team_id === S.teamId) || null;
+    // Team ist fix (Hauptseite), Saison nur aus den Saisons dieses Teams
+    const K = waehleTeamKontext(S.st, { saisonId: S.saisonId });
+    S.teamId = K.team?.id ?? null; S.saisonId = K.saison?.id ?? null; S.liste = K.liste; S.teamSaisons = K.saisons;
     const kader = S.liste ? await ladeKader(S.liste.id) : [];
     S.kMap = new Map(kader.map(k => [k.id, k]));
     S.matches = [];
@@ -130,32 +126,12 @@ export async function mount(root) {
 
   // ==============================================================
   function zeichne() {
-    const vereine = new Set(S.st.teams.map(t => t.verein));
-    const opt = s => `<option value="${s.id}" ${s.id === S.saisonId ? 'selected' : ''}>${esc(s.name)}</option>`;
-    const aktiv = S.st.saisons.filter(s => !s.archiviert), archiv = S.st.saisons.filter(s => s.archiviert);
     box.innerHTML = `
-      <div class="kontext">
-        <label class="sel-wrap">Saison
-          <select class="sel-saison" ${S.st.saisons.length ? '' : 'disabled'}>
-            ${aktiv.map(opt).join('')}${archiv.length ? `<optgroup label="📦 Archiv">${archiv.map(opt).join('')}</optgroup>` : ''}
-          </select>
-        </label>
-      </div>
-      <div class="team-chips">${S.st.teams.map(t => `
-        <button class="chip ${t.id === S.teamId ? 'on' : ''}" data-id="${t.id}">
-          ${vereine.size > 1 ? `<small>${esc(t.verein)}</small>` : ''}${esc(t.name)}</button>`).join('')}</div>
+      ${kontextKopf(team(), S.teamSaisons, S.saisonId)}
       <div class="an-inhalt"></div>`;
-    box.querySelector('.sel-saison').onchange = e => { S.saisonId = e.target.value; setAuswahl({ saisonId: S.saisonId }); matchId = null; ladeBasis().then(zeichne); };
-    box.querySelector('.team-chips').onclick = e => {
-      const b = e.target.closest('.chip'); if (!b) return;
-      S.teamId = b.dataset.id; setAuswahl({ teamId: S.teamId }); matchId = null; ladeBasis().then(zeichne);
-    };
+    box.querySelector('.sel-saison')?.addEventListener('change', e => { S.saisonId = e.target.value; setAuswahl({ saisonId: S.saisonId }); matchId = null; ladeBasis().then(zeichne); });
     const inhalt = box.querySelector('.an-inhalt');
-    if (!S.liste) {
-      inhalt.innerHTML = `<div class="hinweis"><p>${!S.st.saisons.length || !S.st.teams.length ? 'Es gibt noch keine Saison bzw. kein Team.'
-        : `<b>${esc(teamLabel(team()))}</b> hat in der Saison <b>${esc(saison()?.name)}</b> noch keinen Kader.`}</p></div>`;
-      return;
-    }
+    if (!S.liste) { inhalt.innerHTML = keinKaderHinweis(team()); return; }
     const knopf = (k, v, aktuell, text) => `<button data-k="${k}" data-v="${v}" class="${aktuell === v ? 'on' : ''}">${text}</button>`;
     inhalt.innerHTML = `
       <div class="seg an-tabs">${Object.entries(TABS).map(([k, t]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${t}</button>`).join('')}</div>

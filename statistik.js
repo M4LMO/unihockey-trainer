@@ -10,7 +10,7 @@
 // ============================================================
 import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
-import { ladeStammdaten, ladeKader, getAuswahl, setAuswahl, teamLabel, ladeIch, sperrGrund } from './kontext.js';
+import { ladeStammdaten, ladeKader, setAuswahl, teamLabel, ladeIch, sperrGrund, waehleTeamKontext, kontextKopf, keinKaderHinweis } from './kontext.js';
 import * as L from './statistik-logik.js';
 
 const TABS = ['matches', 'skorer', 'goalies', 'team', 'strafen'];
@@ -72,17 +72,10 @@ export async function mount(root) {
 
   async function ladeBasis(listeId = null) {
     S.st = await ladeStammdaten();
-    if (listeId) {
-      const l = S.st.listen.find(x => x.id === listeId);
-      if (l) { S.saisonId = l.saison_id; S.teamId = l.team_id; setAuswahl({ saisonId: l.saison_id, teamId: l.team_id }); }
-    }
-    const a = getAuswahl();
-    const sOk = id => S.st.saisons.some(s => s.id === id);
-    const tOk = id => S.st.teams.some(t => t.id === id);
-    S.saisonId = sOk(S.saisonId) ? S.saisonId : sOk(a.saisonId) ? a.saisonId
-      : (S.st.saisons.find(s => !s.archiviert) || S.st.saisons[0])?.id ?? null;
-    S.teamId = tOk(S.teamId) ? S.teamId : tOk(a.teamId) ? a.teamId : S.st.teams[0]?.id ?? null;
-    S.liste = S.st.listen.find(l => l.saison_id === S.saisonId && l.team_id === S.teamId) || null;
+    // Team ist fix (Hauptseite), Saison nur aus den Saisons dieses Teams
+    const l = listeId ? S.st.listen.find(x => x.id === listeId) : null;
+    const K = waehleTeamKontext(S.st, l ? { teamId: l.team_id, saisonId: l.saison_id } : { saisonId: S.saisonId });
+    S.teamId = K.team?.id ?? null; S.saisonId = K.saison?.id ?? null; S.liste = K.liste; S.teamSaisons = K.saisons;
     S.kader = S.liste ? await ladeKader(S.liste.id) : [];
     S.kMap = new Map(S.kader.map(k => [k.id, k]));
   }
@@ -154,35 +147,16 @@ export async function mount(root) {
     let sort = 'p', sortS = 'pim', wb = L.getWbFilter();
 
     async function zeichne() {
-      const vereine = new Set(S.st.teams.map(t => t.verein));
-      const opt = s => `<option value="${s.id}" ${s.id === S.saisonId ? 'selected' : ''}>${esc(s.name)}</option>`;
-      const aktiv = S.st.saisons.filter(s => !s.archiviert), archiv = S.st.saisons.filter(s => s.archiviert);
       box.innerHTML = `
-        <div class="kontext">
-          <label class="sel-wrap">Saison
-            <select class="sel-saison" ${S.st.saisons.length ? '' : 'disabled'}>
-              ${aktiv.map(opt).join('')}${archiv.length ? `<optgroup label="📦 Archiv">${archiv.map(opt).join('')}</optgroup>` : ''}
-            </select>
-          </label>
-        </div>
-        <div class="team-chips">${S.st.teams.map(t => `
-          <button class="chip ${t.id === S.teamId ? 'on' : ''}" data-id="${t.id}">
-            ${vereine.size > 1 ? `<small>${esc(t.verein)}</small>` : ''}${esc(t.name)}</button>`).join('')}</div>
-        ${nurLesen() ? banner() : ''}
+        ${kontextKopf(team(), S.teamSaisons, S.saisonId)}
+        ${S.liste && nurLesen() ? banner() : ''}
         <div class="st-inhalt"></div>
         <button class="fab" hidden aria-label="Match importieren">＋</button>`;
-      box.querySelector('.sel-saison').onchange = e => { S.saisonId = e.target.value; setAuswahl({ saisonId: S.saisonId }); neuLaden(); };
-      box.querySelector('.team-chips').onclick = e => {
-        const b = e.target.closest('.chip'); if (!b) return;
-        S.teamId = b.dataset.id; setAuswahl({ teamId: S.teamId }); neuLaden();
-      };
+      box.querySelector('.sel-saison')?.addEventListener('change', e => { S.saisonId = e.target.value; setAuswahl({ saisonId: S.saisonId }); neuLaden(); });
 
       const inhalt = box.querySelector('.st-inhalt');
       if (!S.liste) {
-        inhalt.innerHTML = `<div class="hinweis">
-          <p>${!S.st.saisons.length || !S.st.teams.length ? 'Es gibt noch keine Saison bzw. kein Team.'
-            : `<b>${esc(teamLabel(team()))}</b> hat in der Saison <b>${esc(saison()?.name)}</b> noch keinen Kader.`}</p>
-          <a class="btn primary" href="#/kader">Zum Kader</a></div>`;
+        inhalt.innerHTML = keinKaderHinweis(team());
         return;
       }
       inhalt.innerHTML = `
