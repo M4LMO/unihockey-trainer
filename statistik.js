@@ -237,19 +237,19 @@ export async function mount(root) {
       const zeigeTabelle = () => {
         const reihen = S.kader.filter(k => istSpieler(k) && !istGoalie(k))
           .map(k => ({ k, s: P.get(k.id) || { sp: 0, t: 0, a: 0, pim: 0, ppT: 0, plus: 0, minus: 0 } }))
-          .filter(x => x.k.aktiv || x.s.sp || x.s.t || x.s.a || x.s.pim)
+          .filter(x => x.k.aktiv || x.s.sp || x.s.t || x.s.a)
           .map(x => ({ ...x, p: x.s.t + x.s.a, pm: x.s.plus - x.s.minus }));
-        const wert = { p: x => x.p, t: x => x.s.t, a: x => x.s.a, pim: x => x.s.pim, pm: x => x.pm, sp: x => x.s.sp };
+        const wert = { p: x => x.p, t: x => x.s.t, a: x => x.s.a, pm: x => x.pm, sp: x => x.s.sp };
         reihen.sort((a, b) => wert[sort](b) - wert[sort](a) || b.p - a.p || b.s.t - a.s.t || (a.k.nummer ?? 99) - (b.k.nummer ?? 99));
         const max = Math.max(1, ...reihen.map(x => x.p));
         const th = (k, t, titel) => `<th class="${sort === k ? 'on' : ''}" data-s="${k}" title="${titel}">${t}</th>`;
         ziel.querySelector('.st-tabelle').innerHTML = reihen.length ? `
           <table class="st-tab">
-            <thead><tr><th class="li">Spieler:in</th>${th('sp', 'Sp', 'Spiele')}${th('t', 'T', 'Tore')}${th('a', 'A', 'Assists')}${th('p', 'P', 'Punkte')}${th('pim', "Str'", 'Strafminuten')}${th('pm', '+/−', 'Plus/Minus')}</tr></thead>
+            <thead><tr><th class="li">Spieler:in</th>${th('sp', 'Sp', 'Spiele')}${th('t', 'T', 'Tore')}${th('a', 'A', 'Assists')}${th('p', 'P', 'Punkte')}${th('pm', '+/−', 'Plus/Minus')}</tr></thead>
             <tbody>${reihen.map(x => `<tr class="${x.k.aktiv ? '' : 'st-inaktiv'}">
               <td class="li"><span class="st-name">${kLabel(x.k.id)}</span><span class="st-bar"><i style="width:${Math.round(100 * x.p / max)}%"></i></span></td>
               <td>${x.s.sp}</td><td>${x.s.t}${x.s.ppT ? `<small title="davon im Powerplay">${x.s.ppT}pp</small>` : ''}</td><td>${x.s.a}</td>
-              <td class="fett">${x.p}</td><td>${x.s.pim || ''}</td>
+              <td class="fett">${x.p}</td>
               <td class="${x.pm > 0 ? 'plus' : x.pm < 0 ? 'minus' : ''}">${x.s.plus || x.s.minus ? (x.pm > 0 ? '+' : '') + x.pm : ''}</td>
             </tr>`).join('')}</tbody>
           </table>` : '<p class="muted pad leer">Noch keine Daten.</p>';

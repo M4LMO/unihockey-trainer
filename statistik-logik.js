@@ -76,7 +76,8 @@ export function strafMinuten(min) {
 // ---- Zeitleiste: Situation bei jedem Tor, PP/BP-Bilanz --------
 // ereignisse: [{id, art, zeit, kader_id, situation, minuten}]
 // Rückgabe: { sit: Map(id → situation), pp: {chancen, tore, gegentore, starts}, bp: {chancen, gegentore, tore, starts}, leer: {tore, gegentore},
-//            folgen: Map(id eigene Strafe → Gegentore in Unterzahl, die dieser Strafe zugerechnet werden) }
+//            folgen: Map(id eigene Strafe → Gegentore in Unterzahl, die dieser Strafe zugerechnet werden),
+//            wechsel: [{t, z}] Zeitpunkte, an denen die Situation wechselt (z = 'pp' | 'bp' | 'eq') }
 // starts = Spielzeiten, an denen ein Powerplay/Boxplay begonnen hat
 export function zeitleiste(ereignisse) {
   const liste = [...ereignisse].sort((a, b) => a.zeit - b.zeit || rang(a) - rang(b));
@@ -85,7 +86,7 @@ export function zeitleiste(ereignisse) {
   let goalieRaus = false;
   const sit = new Map();
   const folgen = new Map();
-  const R = { pp: { chancen: 0, tore: 0, gegentore: 0, starts: [] }, bp: { chancen: 0, gegentore: 0, tore: 0, starts: [] }, leer: { tore: 0, gegentore: 0 } };
+  const R = { pp: { chancen: 0, tore: 0, gegentore: 0, starts: [] }, bp: { chancen: 0, gegentore: 0, tore: 0, starts: [] }, leer: { tore: 0, gegentore: 0 }, wechsel: [] };
   let zustand = 'eq';
 
   const ablaufen = (t, s) => {
@@ -112,6 +113,7 @@ export function zeitleiste(ereignisse) {
       if (neu === 'pp') { R.pp.chancen++; R.pp.starts.push(t); }
       if (neu === 'bp') { R.bp.chancen++; R.bp.starts.push(t); }
       zustand = neu;
+      R.wechsel.push({ t, z: neu });
     }
   };
   // Nächstes Strafende vor t einzeln abarbeiten (damit Zustandswechsel gezählt werden)

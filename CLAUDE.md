@@ -4,7 +4,7 @@ Web-App für den Trainerstaff im Unihockey (Kader, Linien, Statistik …). Besit
 Hosting: GitHub Pages aus `main` (Root) → https://m4lmo.github.io/unihockey-trainer · Datenbank/Login: Supabase.
 
 **Lies zuerst `docs/vision.md`** (Grundsätze, Zugang/RLS, Datenmodell, Code-Struktur, Backlog).
-Tool-Details: `docs/linien-spec.md`, `docs/statistik-spec.md`. SQL-Historie: `sql/` (nächste freie Nummer steht in vision.md).
+Tool-Details: `docs/linien-spec.md`, `docs/statistik-spec.md`, `docs/analyse-spec.md`. SQL-Historie: `sql/` (nächste freie Nummer steht in vision.md).
 
 ## Grundsätze (immer einhalten)
 - **Datenschutz:** Personen nur mit Name, Rückennummer, Position, Rolle. Keine weiteren Personendaten (keine Gründe für Absenzen, keine Gesundheit, keine Entwicklungsnotizen). Gegner:innen nur mit Rückennummer.
