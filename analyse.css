@@ -1,0 +1,138 @@
+/* ============================================================
+   Tool Analyse – wird von analyse.js geladen
+   Farben: Wir = Vereinsfarbe, Gegner = Blau (auch für Farbenblinde unterscheidbar)
+   ============================================================ */
+.an {
+  --an-wir: var(--team);
+  --an-geg: #2563eb;
+  --an-pp: rgba(22, 163, 74, .13);
+  --an-bp: rgba(220, 38, 38, .11);
+  --an-vorne: #16a34a;
+  --an-gleich: #94a3b8;
+  --an-hinten: #dc2626;
+  padding: 14px; padding-bottom: 40px;
+}
+.an-tabs { display: flex; margin-top: 10px; }
+.an-tabs button { flex: 1; padding: 7px 4px; font-size: .85rem; }
+.an-filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.an-filter .seg button { padding: 5px 10px; font-size: .8rem; }
+.an-filter select, .an-match select { font-size: 16px; }
+.an-wb { flex: 1; min-width: 140px; padding: 6px 10px; }
+
+.an-karte {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px 14px; margin-top: 12px; display: grid; gap: 10px; min-width: 0;
+}
+.an-karte .gruppe { margin: 0; }
+.an-karte .klein { margin: 0; }
+
+/* Kennzahlen */
+.an-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.an-kpis > div { background: var(--bg); border-radius: 10px; padding: 8px 10px; display: grid; }
+.an-kpis b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.an-kpis small { color: var(--muted); font-size: .78rem; font-weight: 600; }
+.an-kpis em { font-style: normal; color: var(--muted); font-size: .75rem; }
+.an-kpis.klein { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 6px; }
+.an-kpis.klein b { font-size: 1.1rem; }
+
+/* Legende */
+.an-leg, .an-stand-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--muted); }
+.an-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.an-sw.f { background: var(--an-wir); }
+.an-sw.g { background: var(--an-geg); }
+.an-sw.pp { background: var(--an-pp); box-shadow: inset 0 0 0 1px rgba(22,163,74,.4); }
+.an-sw.bp { background: var(--an-bp); box-shadow: inset 0 0 0 1px rgba(220,38,38,.4); }
+.an-sw.vorne { background: var(--an-vorne); }
+.an-sw.gleich { background: var(--an-gleich); }
+.an-sw.hinten { background: var(--an-hinten); }
+
+/* Diagramme (SVG) */
+.an-chart { position: relative; width: 100%; min-width: 0; }
+.an-chart svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: manipulation; }
+.an-grid { stroke: var(--line); stroke-width: 1; }
+.an-achse { stroke: #cbd5e1; stroke-width: 1; }
+.an-grenze { stroke: #94a3b8; stroke-width: 1; stroke-dasharray: 3 3; }
+.an-ax { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.an-wert { fill: var(--text); font-size: 10px; font-weight: 700; }
+.an-f { fill: var(--an-wir); }
+.an-g { fill: var(--an-geg); }
+.an-hover { fill: var(--bg); }
+.an-band.pp { fill: var(--an-pp); }
+.an-band.bp { fill: var(--an-bp); }
+.an-linie { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.an-linie.f { stroke: var(--an-wir); }
+.an-linie.g { stroke: var(--an-geg); }
+.an-punkt { stroke: var(--card); stroke-width: 2; }
+.an-punkt.f { fill: var(--an-wir); }
+.an-punkt.g { fill: var(--an-geg); }
+.an-endlabel { fill: var(--text); font-size: 11px; font-weight: 700; }
+.an-erg.s { fill: var(--an-vorne); }
+.an-erg.n { fill: var(--an-hinten); }
+.an-erg.u { fill: var(--an-gleich); }
+
+/* Tooltip */
+.an-tip {
+  position: absolute; z-index: 5; pointer-events: none;
+  background: var(--nav); color: #f1f5f9; border-radius: 8px; padding: 7px 10px;
+  font-size: .8rem; line-height: 1.35; display: grid; gap: 2px; max-width: 240px;
+  box-shadow: 0 4px 14px rgba(15,23,42,.25);
+}
+.an-tip small { color: #cbd5e1; font-size: .72rem; }
+.an-tip .an-sw { box-shadow: 0 0 0 1.5px #f1f5f9; }
+
+/* Tabelle (Barrierefreiheit) */
+.an-tabelle summary { cursor: pointer; font-size: .82rem; color: var(--muted); }
+.an-tabelle table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.an-tabelle th, .an-tabelle td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: center; }
+
+/* Pro Abschnitt */
+.an-abs { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 6px; }
+.an-abs > div { background: var(--bg); border-radius: 10px; padding: 8px 10px; display: grid; text-align: center; }
+.an-abs small { color: var(--muted); font-size: .75rem; font-weight: 600; }
+.an-abs b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.an-abs em { font-style: normal; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.an-abs em.plus { color: var(--ok); }
+.an-abs em.minus { color: var(--err); }
+
+/* Tore nach Situation */
+.an-sit { display: grid; gap: 6px; }
+.an-sit-z { display: grid; grid-template-columns: minmax(90px, 38%) 1fr 1fr; gap: 6px; align-items: center; font-size: .82rem; }
+.an-sit-z > span:first-child { color: var(--muted); font-weight: 600; }
+.an-hbar { position: relative; height: 20px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.an-hbar i { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; opacity: .85; }
+.an-hbar.f i { background: var(--an-wir); }
+.an-hbar.g i { background: var(--an-geg); }
+.an-hbar b { position: relative; padding-left: 7px; line-height: 20px; font-variant-numeric: tabular-nums; color: var(--text); text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+
+/* Matchverlauf */
+.an-match { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); font-weight: 600; margin-top: 12px; }
+.an-kopf { display: flex; align-items: center; gap: 10px; }
+.an-kopf > div { flex: 1; min-width: 0; display: grid; }
+.an-kopf strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.an-kopf small { font-size: .78rem; }
+.an-res { font-size: 1.5rem; color: var(--team); font-variant-numeric: tabular-nums; }
+.an-erg-b {
+  flex: none; min-width: 30px; height: 30px; border-radius: 9px; display: inline-grid; place-items: center;
+  color: #fff; font-weight: 800; font-size: .9rem; background: var(--line);
+}
+.an-erg-b.s { background: var(--an-vorne); }
+.an-erg-b.n { background: var(--an-hinten); }
+.an-erg-b.u { background: #64748b; }
+.an-erg-b.leer { color: var(--muted); }
+.an-link { justify-self: start; text-decoration: none; }
+
+/* Spielstand-Balken */
+.an-stand { display: flex; gap: 2px; height: 26px; border-radius: 6px; overflow: hidden; }
+.an-st { display: grid; place-items: center; min-width: 0; color: #fff; font-size: .78rem; }
+.an-st b { white-space: nowrap; overflow: hidden; }
+.an-st.vorne { background: var(--an-vorne); }
+.an-st.gleich { background: var(--an-gleich); }
+.an-st.hinten { background: var(--an-hinten); }
+
+/* Saison */
+.an-form5 { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; font-size: .85rem; color: var(--muted); font-weight: 600; }
+.an-form5 .an-erg-b { min-width: 24px; height: 24px; font-size: .75rem; border-radius: 7px; }
+.an-form5 em { font-style: normal; margin-left: 6px; color: var(--text); }
+.an-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.an-liste a { display: flex; gap: 6px; align-items: baseline; color: inherit; text-decoration: none; font-size: .88rem; padding: 4px 0; }
+.an-liste a span { margin-left: auto; color: var(--muted); font-size: .8rem; white-space: nowrap; }

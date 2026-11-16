@@ -49,7 +49,7 @@ Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude lie
 - Swiss-Unihockey-App: Match facts zeigt Tore (Zeit, Schütz:in, Assist) und Spielabschnitte; Lineup zeigt Linien + Kaderliste (Nr, Name, Position).
 
 ## Ansichten
-- Übersicht: Saison/Team wie Kader; Tabs **Matches** (S/U/N, Resultat, Statistik-Status), **Skorer** (Sp, T, A, P, Strafminuten, +/−, sortierbar), **Goalies** (Spiele, Spielzeit, Gegentore, GT/60'), **Team** (Bilanz, PP/BP-Quote, Strafminuten, Tore pro Abschnitt), **Strafen** (siehe unten).
+- Übersicht: Saison/Team wie Kader; Tabs **Matches** (S/U/N, Resultat, Statistik-Status), **Skorer** (Sp, T, A, P, +/−, sortierbar; Strafminuten seit 16.11. nur im Register Strafen), **Goalies** (Spiele, Spielzeit, Gegentore, GT/60'), **Team** (Bilanz, PP/BP-Quote, Strafminuten, Tore pro Abschnitt), **Strafen** (siehe unten).
 
 ## Register «Strafen» (13.11.2026, mit Marc abgestimmt)
 - Nur **eigene** Strafen (keine Gegner-Strafen). Kein SQL nötig – rechnet aus `match_ereignisse` (`strafenStatistik` in `statistik-logik.js`).

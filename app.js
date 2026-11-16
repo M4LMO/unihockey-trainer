@@ -12,6 +12,7 @@ import * as admin from './admin.js';
 import * as kader from './kader.js';
 import * as linien from './linien.js';
 import * as statistik from './statistik.js';
+import * as analyse from './analyse.js';
 
 // ---- Liste aller Tools ---------------------------------------
 // Neue Tools werden hier eingetragen (soon: true = noch in Arbeit, wird auf der Startseite ausgeblendet)
@@ -21,6 +22,7 @@ const TOOLS = [
   { id: 'praesenz',  name: 'Präsenz',          icon: '✅', desc: 'Anwesenheit im Training',   soon: true },
   { id: 'taktik',    name: 'Taktikboard',      icon: '📋', desc: 'Spielzüge zeichnen',        soon: true },
   { id: 'statistik', name: 'Statistik',        icon: '📊', desc: 'Tore, Strafen, Skorer',     modul: statistik },
+  { id: 'analyse',   name: 'Analyse',          icon: '📈', desc: 'Torzeiten, Matchverlauf, Form', modul: analyse },
   { id: 'training',  name: 'Trainingsplanung', icon: '🗓️', desc: 'Übungen & Lektionen',       soon: true },
 ];
 

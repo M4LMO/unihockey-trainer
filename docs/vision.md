@@ -1,4 +1,4 @@
-# Trainer Tools – Vision & Technik (Stand 13.11.2026)
+# Trainer Tools – Vision & Technik (Stand 16.11.2026)
 
 ## Ziel
 Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Unihockey vereinfacht. Tools werden Stück für Stück erarbeitet und in die App eingebettet.
@@ -60,6 +60,7 @@ Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Uniho
 - `kader.js` – Tool Kader (Verwaltung Saisons & Teams nur Admin, ohne Löschen; Staff ohne Saison → „beim Admin melden“)
 - `linien.js` + `linien.css` + `linien-auswertung.js` + `linien-ideen.js` – Tool Linien (`docs/linien-spec.md`)
 - `statistik.js` + `statistik.css` + `statistik-logik.js` – Tool Statistik inkl. Register Strafen (`docs/statistik-spec.md`)
+- `analyse.js` + `analyse.css` + `analyse-logik.js` – Tool Analyse: Torzeiten, Matchverlauf, Saison-Form (nur Ansicht, `docs/analyse-spec.md`)
 - `manifest.webmanifest`, `icon.svg`, `icon-180/192/512.png`
 
 ## Backlog (Empfehlung 12.11.)
