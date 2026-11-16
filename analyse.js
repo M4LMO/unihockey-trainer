@@ -78,7 +78,7 @@ export async function mount(root) {
   const teile = location.hash.replace(/^#\/?/, '').split('/');
   let tab = TABS[teile[1]] ? teile[1] : 'tore';
   let matchId = tab === 'verlauf' ? teile[2] || null : null;
-  let filter = { wettbewerb: '', ort: '' };
+  let filter = { wettbewerb: L.getWbFilter(), ort: '' };
 
   root.innerHTML = `<div class="an"><p class="muted pad">Lade …</p></div>`;
   const box = root.querySelector('.an');
@@ -107,7 +107,7 @@ export async function mount(root) {
       S.matches = data.sort((a, b) => b.datum.localeCompare(a.datum) || String(b.erstellt_am).localeCompare(String(a.erstellt_am)));
     }
   }
-  const gefiltert = () => S.matches.filter(m => (!filter.wettbewerb || m.wettbewerb === filter.wettbewerb) && (!filter.ort || m.ort === filter.ort));
+  const gefiltert = () => S.matches.filter(m => L.wettbewerbVon(m) === filter.wettbewerb && (!filter.ort || m.ort === filter.ort));
 
   // ---- Live-Updates + Grösse ändern ------------------------------
   let timer, rTimer;
@@ -133,8 +133,6 @@ export async function mount(root) {
     const vereine = new Set(S.st.teams.map(t => t.verein));
     const opt = s => `<option value="${s.id}" ${s.id === S.saisonId ? 'selected' : ''}>${esc(s.name)}</option>`;
     const aktiv = S.st.saisons.filter(s => !s.archiviert), archiv = S.st.saisons.filter(s => s.archiviert);
-    const wettbewerbe = [...new Set(S.matches.map(m => m.wettbewerb).filter(Boolean))];
-    if (filter.wettbewerb && !wettbewerbe.includes(filter.wettbewerb)) filter.wettbewerb = '';
     box.innerHTML = `
       <div class="kontext">
         <label class="sel-wrap">Saison
@@ -162,22 +160,22 @@ export async function mount(root) {
     inhalt.innerHTML = `
       <div class="seg an-tabs">${Object.entries(TABS).map(([k, t]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
       <div class="an-filter">
-        <div class="seg">${knopf('ort', '', filter.ort, 'Alle')}${knopf('ort', 'heim', filter.ort, 'Heim')}${knopf('ort', 'auswaerts', filter.ort, 'Auswärts')}</div>
-        ${wettbewerbe.length > 1 ? `<select class="an-wb" aria-label="Wettbewerb">
-          <option value="">Alle Wettbewerbe</option>
-          ${wettbewerbe.map(w => `<option value="${w}" ${filter.wettbewerb === w ? 'selected' : ''}>${esc(WETTBEWERB[w] || w)}</option>`).join('')}
-        </select>` : ''}
+        ${L.wbUmschalter(filter.wettbewerb, 'an-wb')}
+        <div class="seg an-ort">${knopf('ort', '', filter.ort, 'Alle')}${knopf('ort', 'heim', filter.ort, 'Heim')}${knopf('ort', 'auswaerts', filter.ort, 'Auswärts')}</div>
       </div>
       <div class="an-tab"></div>`;
     inhalt.querySelector('.an-tabs').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
       tab = b.dataset.t; zeichne();
     };
-    inhalt.querySelector('.an-filter .seg').onclick = e => {
+    inhalt.querySelector('.an-wb').onclick = e => {
+      const b = e.target.closest('button'); if (!b) return;
+      filter.wettbewerb = b.dataset.wb; L.setWbFilter(filter.wettbewerb); zeichne();
+    };
+    inhalt.querySelector('.an-ort').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
       filter.ort = b.dataset.v; zeichne();
     };
-    inhalt.querySelector('.an-wb')?.addEventListener('change', e => { filter.wettbewerb = e.target.value; zeichne(); });
     zeichneTab();
   }
 
@@ -188,7 +186,7 @@ export async function mount(root) {
     history.replaceState(null, '', tab === 'tore' ? '#/analyse' : tab === 'verlauf' && matchId ? `#/analyse/verlauf/${matchId}` : `#/analyse/${tab}`);
     const ms = gefiltert();
     if (!ms.some(A.hatTore) && tab !== 'saison') {
-      ziel.innerHTML = `<p class="muted pad leer">${S.matches.length ? 'Keine Matches mit erfassten Toren' + (filter.ort || filter.wettbewerb ? ' für diesen Filter' : '') + '.'
+      ziel.innerHTML = `<p class="muted pad leer">${S.matches.length ? `Keine Matches mit erfassten Toren (${esc(WETTBEWERB[filter.wettbewerb])}${filter.ort ? `, ${filter.ort === 'heim' ? 'Heim' : 'Auswärts'}` : ''}).`
         : 'Noch keine Matches.'}<br>Tore werden im Tool <a href="#/statistik">Statistik</a> erfasst.</p>`;
       return;
     }

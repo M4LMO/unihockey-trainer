@@ -209,3 +209,8 @@ li.st-ev { cursor: default; }
 .st-str-ml small { color: var(--muted); font-size: .75rem; }
 .st-str-mz { min-width: 52px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; display: grid; }
 .st-str-mz em { font-style: normal; color: var(--err); font-weight: 700; font-size: .78rem; }
+
+/* Wettbewerb-Umschalter + Matches, die im gewählten Wettbewerb nicht zählen */
+.st-wb { margin-top: 8px; }
+.st-liste li.st-zaehlt-nicht .karte { opacity: .55; }
+.karte .info small.st-zn { color: var(--muted); font-style: italic; }

@@ -22,6 +22,19 @@ export const ART = {
 };
 export const MINUTEN = ['2', '2+2', '5', '10', '2+10', 'MS'];
 
+// ---- Wettbewerb-Umschalter (Statistik + Analyse) ---------------
+// Gezählt wird immer nur ein Wettbewerb. Match ohne Angabe = Meisterschaft.
+export const WB_FILTER = [['meisterschaft', 'Meisterschaft'], ['cup', 'Cup'], ['test', 'Testspiele']];
+export const wettbewerbVon = m => m?.wettbewerb || 'meisterschaft';
+export const imWettbewerb = wb => m => wettbewerbVon(m) === wb;
+export function getWbFilter() {
+  try { const v = localStorage.getItem('wbFilter'); if (WB_FILTER.some(([k]) => k === v)) return v; } catch { /* egal */ }
+  return 'meisterschaft';
+}
+export function setWbFilter(v) { try { localStorage.setItem('wbFilter', v); } catch { /* egal */ } }
+export const wbUmschalter = (wb, klasse = '') => `<div class="seg wb-seg ${klasse}" role="group" aria-label="Wettbewerb">${WB_FILTER
+  .map(([k, t]) => `<button data-wb="${k}" class="${wb === k ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+
 // ---- Zeit ------------------------------------------------------
 export function zeitText(sek) {
   if (sek == null) return '';
