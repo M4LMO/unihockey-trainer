@@ -213,6 +213,7 @@ export async function mount(root) {
       const alle = await ladeMatches(S.liste.id);
       const matches = alle.filter(L.imWettbewerb(wb));   // gezählt werden nur die gewählten Wettbewerbe
       if (tab === 'matches') tabMatches(ziel, alle);
+      else if (!wb.length) ziel.innerHTML = L.WB_LEER_HINWEIS;
       else if (tab === 'skorer') await tabSkorer(ziel, matches);
       else if (tab === 'goalies') tabGoalies(ziel, matches);
       else if (tab === 'strafen') tabStrafen(ziel, matches);

@@ -23,7 +23,7 @@ export const ART = {
 export const MINUTEN = ['2', '2+2', '5', '10', '2+10', 'MS'];
 
 // ---- Wettbewerb-Auswahl (Statistik + Analyse) -----------------
-// Mehrere Wettbewerbe wählbar (wb = Array der Schlüssel), Standard nur Meisterschaft.
+// Mehrere Wettbewerbe wählbar (wb = Array der Schlüssel, darf auch leer sein), Standard nur Meisterschaft.
 // Match ohne Angabe = Meisterschaft.
 export const WB_FILTER = [['meisterschaft', 'Meisterschaft'], ['cup', 'Cup'], ['test', 'Testspiele']];
 const WB_KEYS = WB_FILTER.map(([k]) => k);
@@ -34,19 +34,19 @@ export const wbAlle = wb => WB_KEYS.every(k => wb.includes(k));
 const wbOrdnen = wb => WB_KEYS.filter(k => wb.includes(k));
 export function getWbFilter() {
   try {
-    const v = wbOrdnen(String(localStorage.getItem('wbFilter') || '').split(','));
-    if (v.length) return v;
+    const s = localStorage.getItem('wbFilter');
+    if (s != null) return wbOrdnen(s.split(','));   // '' = bewusst nichts gewählt
   } catch { /* egal */ }
   return [...WB_STANDARD];
 }
 export function setWbFilter(wb) { try { localStorage.setItem('wbFilter', wb.join(',')); } catch { /* egal */ } }
-// Klick auf einen Knopf → neue Auswahl. «alle» wählt alles; der letzte aktive Knopf lässt sich nicht abwählen.
+// Klick auf einen Knopf → neue Auswahl (ein/aus). «Alle» wählt alles – sind schon alle an, wird alles abgewählt.
 export function wbKlick(wb, key) {
-  if (key === 'alle') return [...WB_KEYS];
-  const neu = wb.includes(key) ? wb.filter(k => k !== key) : [...wb, key];
-  return neu.length ? wbOrdnen(neu) : wb;
+  if (key === 'alle') return wbAlle(wb) ? [] : [...WB_KEYS];
+  return wbOrdnen(wb.includes(key) ? wb.filter(k => k !== key) : [...wb, key]);
 }
-export const wbText = wb => wbAlle(wb) ? 'alle Wettbewerbe' : WB_FILTER.filter(([k]) => wb.includes(k)).map(([, t]) => t).join(' + ');
+export const WB_LEER_HINWEIS = '<p class="muted pad leer">Kein Wettbewerb ausgewählt.<br>Tippe oben auf <b>Meisterschaft</b>, <b>Cup</b>, <b>Testspiele</b> oder <b>Alle</b>.</p>';
+export const wbText = wb => !wb.length ? 'kein Wettbewerb' : wbAlle(wb) ? 'alle Wettbewerbe' : WB_FILTER.filter(([k]) => wb.includes(k)).map(([, t]) => t).join(' + ');
 export const wbUmschalter = (wb, klasse = '') => `<div class="seg wb-seg ${klasse}" role="group" aria-label="Wettbewerbe (mehrere wählbar)">
   <button data-wb="alle" class="wb-alle ${wbAlle(wb) ? 'on' : ''}" aria-pressed="${wbAlle(wb)}">Alle</button>${WB_FILTER
   .map(([k, t]) => `<button data-wb="${k}" class="${wb.includes(k) ? 'on' : ''}" aria-pressed="${wb.includes(k)}">${t}</button>`).join('')}</div>`;
