@@ -184,6 +184,7 @@ export async function mount(root) {
     if (!ziel) return;
     breite = box.clientWidth;
     history.replaceState(null, '', tab === 'tore' ? '#/analyse' : tab === 'verlauf' && matchId ? `#/analyse/verlauf/${matchId}` : `#/analyse/${tab}`);
+    if (!filter.wettbewerb.length) { ziel.innerHTML = L.WB_LEER_HINWEIS; return; }
     const ms = gefiltert();
     if (!ms.some(A.hatTore) && tab !== 'saison') {
       ziel.innerHTML = `<p class="muted pad leer">${S.matches.length ? `Keine Matches mit erfassten Toren (${esc(L.wbText(filter.wettbewerb))}${filter.ort ? `, ${filter.ort === 'heim' ? 'Heim' : 'Auswärts'}` : ''}).`
