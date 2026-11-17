@@ -67,4 +67,4 @@ Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude lie
 - **Pro Match:** Strafminuten als Balken, Anzahl, GT; antippen → Match.
 - **Folgen (GT):** Ein Gegentor in Unterzahl wird der Strafe zugerechnet, die es beendet (2'); sonst der zuerst ablaufenden (5' / MS). 2+2 kann zwei GT haben. 10' hat keine Unterzahl und zählt nicht in der Quote (`zeitleiste().folgen`).
 
-- Match: Resultat + PP/BP/Strafminuten, Aufstellung (bearbeiten, Goalie/Start), Telegramm nach Abschnitt (Ereignis antippen → bearbeiten inkl. Version/Linie), ＋ Ereignis, Import (neu), Statistik löschen, Link zu den Linien.
+- Match: Resultat + PP/BP/Strafminuten, Aufstellung (bearbeiten, Goalie/Start), Telegramm nach Abschnitt (alle Drittel/Halbzeiten als Überschrift, auch ohne Ereignisse; Verlängerung nur mit Ereignissen; Ereignis antippen → bearbeiten inkl. Version/Linie), ＋ Ereignis, Import (neu), Statistik löschen, Link zu den Linien.
