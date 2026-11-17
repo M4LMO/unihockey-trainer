@@ -102,7 +102,8 @@
 .ms-karte .ms-filter { margin-top: 0; }
 .ms-karte .ms-filter select { flex: 1 1 120px; width: auto; }
 .ms-arten { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.ms-arten .chip { padding: 5px 10px; font-size: .78rem; }
+.ms-arten .chip { padding: 5px 10px; font-size: .78rem; display: inline-flex; gap: 5px; align-items: baseline; }
+.ms-arten .chip small { font-size: .68rem; }
 .ms-gegner { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .ms-gegner details > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; padding: 7px 6px; border-radius: 8px; }
 .ms-gegner details > summary::-webkit-details-marker { display: none; }

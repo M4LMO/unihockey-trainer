@@ -349,20 +349,33 @@ export async function mount(root) {
   function tabAuswertung(ziel) {
     const bListe = F.bereich === 'alle' ? ['trainer', 'spieler', 'fan'] : [F.bereich];
     const abschnitte = aktivA().filter(a => bListe.includes(a.bereich));
-    // Auswahl-Listen: Saison (Turnierjahr → Saison), Team/Verein, Kategorie
-    const saisons = [...new Set(abschnitte.map(a => M.saisonName(a.saison)))].sort((x, y) => M.saisonSchluessel(y) - M.saisonSchluessel(x));
-    const mitTeam = abschnitte.filter(a => a.bereich !== 'fan' && a.verein_id);
-    const vereinOpt = [...new Set(mitTeam.map(a => a.verein_id))].map(id => ({ v: `v:${id}`, t: `${vName(id)} (alle Teams)` }))
-      .sort((x, y) => x.t.localeCompare(y.t, 'de'));
-    const teamOpt = [...new Map(mitTeam.map(a => [`t:${a.verein_id}|${a.team || ''}`, `${vName(a.verein_id)}${a.team ? ` – ${a.team}` : ''}`])).entries()]
-      .map(([v, t]) => ({ v, t })).sort((x, y) => x.t.localeCompare(y.t, 'de'));
-    const kategorien = [...new Set(abschnitte.filter(a => a.bereich !== 'fan').map(a => a.kategorie || 'Ohne Kategorie'))].sort((x, y) => x.localeCompare(y, 'de'));
-    if (F.saison && !saisons.includes(F.saison)) F.saison = '';
-    if (F.team && ![...vereinOpt, ...teamOpt].some(o => o.v === F.team)) F.team = '';
-    if (F.kategorie && !kategorien.includes(F.kategorie)) F.kategorie = '';
-    const passtTeam = a => !F.team || (F.team.startsWith('v:') ? a.verein_id === F.team.slice(2) : `t:${a.verein_id}|${a.team || ''}` === F.team);
-    const aIds = new Set(abschnitte.filter(a => (!F.saison || M.saisonName(a.saison) === F.saison) && passtTeam(a)
-      && (!F.kategorie || (a.bereich !== 'fan' && (a.kategorie || 'Ohne Kategorie') === F.kategorie))).map(a => a.id));
+    // Auswahl-Listen hängen voneinander ab: jede Liste zeigt nur, was zu den anderen Auswahlen passt
+    const katVon = a => a.kategorie || 'Ohne Kategorie';
+    const teamKey = a => `t:${a.verein_id}|${a.team || ''}`;
+    const passtSaison = a => !F.saison || M.saisonName(a.saison) === F.saison;
+    const passtKat = a => !F.kategorie || (a.bereich !== 'fan' && katVon(a) === F.kategorie);
+    const passtTeam = a => !F.team || (a.bereich !== 'fan' && (F.team.startsWith('v:') ? a.verein_id === F.team.slice(2) : teamKey(a) === F.team));
+    let saisons, kategorien, vereinOpt, teamOpt;
+    for (let runde = 0; runde < 3; runde++) {   // ungültige Auswahl zurücksetzen, bis alles zusammenpasst
+      saisons = [...new Set(abschnitte.filter(a => passtKat(a) && passtTeam(a)).map(a => M.saisonName(a.saison)))]
+        .sort((x, y) => M.saisonSchluessel(y) - M.saisonSchluessel(x));
+      kategorien = [...new Set(abschnitte.filter(a => a.bereich !== 'fan' && passtSaison(a) && passtTeam(a)).map(katVon))]
+        .sort((x, y) => x.localeCompare(y, 'de'));
+      const mitTeam = abschnitte.filter(a => a.bereich !== 'fan' && a.verein_id && passtSaison(a) && passtKat(a));
+      vereinOpt = [...new Set(mitTeam.map(a => a.verein_id))].map(id => ({ v: `v:${id}`, t: `${vName(id)} (alle Teams)` }))
+        .sort((x, y) => x.t.localeCompare(y.t, 'de'));
+      teamOpt = [...new Map(mitTeam.map(a => [teamKey(a), `${vName(a.verein_id)}${a.team ? ` – ${a.team}` : ''}`])).entries()]
+        .map(([v, t]) => ({ v, t })).sort((x, y) => x.t.localeCompare(y.t, 'de'));
+      let ok = true;
+      if (F.saison && !saisons.includes(F.saison)) { F.saison = ''; ok = false; }
+      if (F.kategorie && !kategorien.includes(F.kategorie)) { F.kategorie = ''; ok = false; }
+      if (F.team && ![...vereinOpt, ...teamOpt].some(o => o.v === F.team)) { F.team = ''; ok = false; }
+      if (ok) break;
+    }
+    const aIds = new Set(abschnitte.filter(a => passtSaison(a) && passtKat(a) && passtTeam(a)).map(a => a.id));
+    // Spielarten: nur die anzeigen, die in dieser Auswahl vorkommen (mit Anzahl)
+    const artAnz = M.zaehle(D.SP.filter(s => aIds.has(s.abschnitt_id) && M.zaehlt(s, bereichVon(s), F.modus)), s => s.spielart);
+    const artN = k => artAnz.find(x => x.key === k)?.n || 0;
     const opt = (wert, aktuell, text) => `<option value="${esc(wert)}" ${wert === aktuell ? 'selected' : ''}>${esc(text)}</option>`;
     const spiele = D.SP.filter(s => aIds.has(s.abschnitt_id) && F.arten.includes(s.spielart) && M.zaehlt(s, bereichVon(s), F.modus));
     const eigene = spiele.filter(s => bereichVon(s) !== 'fan');
@@ -381,7 +394,7 @@ export async function mount(root) {
         </label>
         <label class="sel-wrap ms-modus">Team
           <select class="f-team"><option value="">Alle Teams</option>
-            ${vereinOpt.length > 1 || teamOpt.length > vereinOpt.length ? `<optgroup label="Verein">${vereinOpt.map(o => opt(o.v, F.team, o.t)).join('')}</optgroup>` : ''}
+            ${vereinOpt.length && teamOpt.length > vereinOpt.length ? `<optgroup label="Verein">${vereinOpt.map(o => opt(o.v, F.team, o.t)).join('')}</optgroup>` : ''}
             <optgroup label="Team">${teamOpt.map(o => opt(o.v, F.team, o.t)).join('')}</optgroup>
           </select>
         </label>` : ''}
@@ -389,7 +402,7 @@ export async function mount(root) {
           <select class="f-modus">${Object.entries(M.MODI).map(([k, t]) => `<option value="${k}" ${F.modus === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
         </label>` : ''}
       </div>
-      <div class="ms-arten">${Object.entries(M.SPIELARTEN).map(([k, t]) => `<button class="chip ${F.arten.includes(k) ? 'on' : ''}" data-art="${k}">${t}</button>`).join('')}</div>
+      <div class="ms-arten">${Object.entries(M.SPIELARTEN).filter(([k]) => artN(k)).map(([k, t]) => `<button class="chip ${F.arten.includes(k) ? 'on' : ''}" data-art="${k}">${t} <small>${artN(k)}</small></button>`).join('')}</div>
       <div class="ms-aw"></div>`;
 
     ziel.querySelector('.ms-f-bereich').onclick = e => { const b = e.target.closest('button'); if (!b) return; F.bereich = b.dataset.b; setEinst({ aBereich: F.bereich }); tabAuswertung(ziel); };
@@ -594,12 +607,13 @@ export async function mount(root) {
   // ==============================================================
   //  AUSWAHL-FELD (Verein / Halle) mit Vorschlägen
   // ==============================================================
-  function machePicker(wrap, { suche, text, sub = () => '' }) {
+  // leer: Vorschläge, solange noch nichts getippt ist (z.B. Gegner dieser Saison)
+  function machePicker(wrap, { suche, text, sub = () => '', leer = () => [] }) {
     const inp = wrap.querySelector('input'), vor = wrap.querySelector('.ms-vor');
     let liste = [];
     const zeige = () => {
       const q = inp.value.trim();
-      liste = suche(q);
+      liste = q ? suche(q) : leer().slice(0, 8);
       const exakt = liste.some(t => M.norm(text(t)) === M.norm(q));
       vor.innerHTML = liste.map((t, i) => `<button type="button" data-i="${i}">${esc(text(t))}${sub(t, q)}</button>`).join('')
         + (q && !exakt ? `<button type="button" class="neu" data-neu>＋ «${esc(q)}» neu</button>` : '');
@@ -623,8 +637,19 @@ export async function mount(root) {
   function aliasSub(v, q) {
     return v.land ? ` <small>${esc(v.land)}</small>` : '';
   }
-  function vereinPicker(wrap) { return machePicker(wrap, { suche: q => M.sucheVereine(D.V, q), text: v => v.name, sub: aliasSub }); }
-  function hallenPicker(wrap) { return machePicker(wrap, { suche: q => M.sucheHallen(D.H, q), text: M.halleText }); }
+  function vereinPicker(wrap, leerIds) {
+    return machePicker(wrap, { suche: q => M.sucheVereine(D.V, q), text: v => v.name, sub: aliasSub, leer: () => (leerIds?.() || []).map(id => VM.get(id)).filter(Boolean) });
+  }
+  function hallenPicker(wrap, leerIds) {
+    return machePicker(wrap, { suche: q => M.sucheHallen(D.H, q), text: M.halleText, leer: () => (leerIds?.() || []).map(id => HM.get(id)).filter(Boolean) });
+  }
+  // Häufigste Werte zuerst – zuerst aus diesem Block, dann aus den anderen Saisons desselben Teams
+  function vorschlaege(a, felder) {
+    const gleichesTeam = x => x.bereich === a.bereich && x.verein_id === a.verein_id && (x.team || '') === (a.team || '');
+    const andere = aktivA().filter(x => x.id !== a.id && gleichesTeam(x)).map(x => x.id);
+    const ids = liste => M.zaehle(D.SP.filter(s => liste.includes(s.abschnitt_id)).flatMap(s => felder.map(f => s[f])), x => x).map(x => x.key);
+    return [...new Set([...ids([a.id]), ...ids(andere)])];
+  }
 
   // Verein aus Picker holen – unbekannter Name → nachfragen und neu anlegen
   async function vereinAus(p, was) {
@@ -697,10 +722,10 @@ export async function mount(root) {
         <button type="button" class="btn ghost btn-abbr">Abbrechen</button>
         <button class="btn primary">Speichern</button>
       </div>`;
-    const pH = hallenPicker(f.querySelector('.p-halle'));
-    const pG = !fan ? vereinPicker(f.querySelector('.p-gegner')) : null;
-    const pHeim = fan ? vereinPicker(f.querySelector('.p-heim')) : null;
-    const pGast = fan ? vereinPicker(f.querySelector('.p-gast')) : null;
+    const pH = hallenPicker(f.querySelector('.p-halle'), () => vorschlaege(a, ['halle_id']));
+    const pG = !fan ? vereinPicker(f.querySelector('.p-gegner'), () => vorschlaege(a, ['gegner_id'])) : null;
+    const pHeim = fan ? vereinPicker(f.querySelector('.p-heim'), () => vorschlaege(a, ['heim_id', 'gast_id'])) : null;
+    const pGast = fan ? vereinPicker(f.querySelector('.p-gast'), () => vorschlaege(a, ['heim_id', 'gast_id'])) : null;
     const s = sp || {
       teil: vorher?.teil || '', spielart: vorher?.spielart || (fan ? 'meisterschaft' : 'meisterschaft'),
       liga: vorher?.liga || '', ich: b === 'trainer' ? 'dabei' : b === 'spieler' ? 'tor' : null,
@@ -780,8 +805,9 @@ export async function mount(root) {
       </div>
       <div class="ms-pick p-verein n-fan"><span class="lbl">Mein Verein</span><input autocomplete="off" placeholder="z.B. UHC Lions Konolfingen"><div class="ms-vor" hidden></div></div>
       <div class="ms-reihe n-fan">
-        <label>Team / Liga<input name="team" placeholder="z.B. Herren GF 3. Liga" autocomplete="off"></label>
-        <label>Gruppe<input name="gruppe" placeholder="z.B. Gruppe 1" autocomplete="off"></label>
+        <label>Team / Liga<input name="team" list="ms-dl-team" placeholder="z.B. Herren GF 3. Liga" autocomplete="off"></label>
+        <label>Gruppe<input name="gruppe" list="ms-dl-gruppe" placeholder="z.B. Gruppe 1" autocomplete="off"></label>
+        <datalist id="ms-dl-team"></datalist><datalist id="ms-dl-gruppe"></datalist>
       </div>
       <label class="n-fan">Staff (eine Zeile pro Funktion)<textarea name="staff" rows="3" placeholder="HC: …&#10;AC: …"></textarea></label>
       <label>Notiz<textarea name="notiz" rows="3" placeholder="z.B. Zusammenfassung, «Keine Tabelle ersichtlich»"></textarea></label>
@@ -791,7 +817,12 @@ export async function mount(root) {
         <button type="button" class="btn ghost btn-abbr">Abbrechen</button>
         <button class="btn primary">Speichern</button>
       </div>`;
-    const pV = vereinPicker(f.querySelector('.p-verein'));
+    const pV = vereinPicker(f.querySelector('.p-verein'), () => [...new Set(aktivA().filter(x => x.bereich === f.bereich.value && x.verein_id).map(x => x.verein_id))]);
+    // Team- und Gruppen-Vorschläge passend zum gewählten Verein (und Team)
+    const vorschlagListe = (id, werte) => { f.querySelector(`#${id}`).innerHTML = [...new Set(werte.filter(Boolean))].sort((x, y) => x.localeCompare(y, 'de')).map(w => `<option value="${esc(w)}">`).join(''); };
+    const meinVerein = () => pV.id() || M.findeVerein(D.V, pV.text())?.id || null;
+    f.team.addEventListener('focus', () => vorschlagListe('ms-dl-team', aktivA().filter(x => !meinVerein() || x.verein_id === meinVerein()).map(x => x.team)));
+    f.gruppe.addEventListener('focus', () => vorschlagListe('ms-dl-gruppe', aktivA().filter(x => (!meinVerein() || x.verein_id === meinVerein()) && (!f.team.value.trim() || x.team === f.team.value.trim())).map(x => x.gruppe)));
     f.saison.value = a?.saison || '';
     f.kategorie.value = a?.kategorie || (a ? '' : 'Meisterschaft');
     pV.set(VM.get(a?.verein_id));
