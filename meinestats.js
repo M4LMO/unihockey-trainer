@@ -15,7 +15,7 @@ import { ladeIch, sperrGrund } from './kontext.js';
 import * as M from './meinestats-logik.js';
 
 const TABS = { uebersicht: 'Übersicht', spiele: 'Spiele', auswertung: 'Auswertung', verwaltung: 'Verwaltung' };
-const TABELLEN = ['ms_vereine', 'ms_hallen', 'ms_abschnitte', 'ms_spiele', 'ms_tabellen'];
+const TABELLEN = ['ms_vereine', 'ms_hallen', 'ms_abschnitte', 'ms_spiele', 'ms_tabellen'];   // ms_werdegang separat (darf fehlen)
 const SPEICHER = 'tt-meinestats';
 // Spalten der Rangtabelle (Editor)
 const SPALTEN = [['rang', '#'], ['sp', 'Sp'], ['s', 'S'], ['u', 'U'], ['snv', 'SnV'], ['nnv', 'NnV'], ['n', 'N'], ['tore', 'T'], ['gegentore', 'GT'], ['punkte', 'P']];
@@ -74,7 +74,8 @@ export async function mount(root) {
   let ersterAufbau = true;
   let vwSuche = '';
 
-  const D = { V: [], H: [], A: [], SP: [], TB: [] };
+  const D = { V: [], H: [], A: [], SP: [], TB: [], WG: [] };
+  let junOffen = false;   // Kapitel «Junioren-Werdegang» aufgeklappt?
   let VM = new Map(), HM = new Map(), AM = new Map();
 
   root.innerHTML = `<div class="ms"><p class="muted pad">Lade …</p></div>${dialogeHTML()}`;
@@ -82,7 +83,9 @@ export async function mount(root) {
 
   async function laden() {
     const [V, H, A, SP, TB] = await Promise.all(TABELLEN.map(ladeAlle));
-    Object.assign(D, { V: V.sort((a, b) => a.name.localeCompare(b.name, 'de')), H, A, SP, TB });
+    // Junioren-Werdegang (SQL 13) – fehlt die Tabelle noch, einfach leer
+    const WG = await ladeAlle('ms_werdegang').catch(e => { if (/PGRST205|42P01|does not exist/i.test(`${e?.code} ${e?.message}`)) return null; throw e; });
+    Object.assign(D, { V: V.sort((a, b) => a.name.localeCompare(b.name, 'de')), H, A, SP, TB, WG: WG || [], wgFehlt: !WG });
     VM = new Map(D.V.map(v => [v.id, v])); HM = new Map(H.map(h => [h.id, h])); AM = new Map(A.map(a => [a.id, a]));
     // Datalists (Saisons, Kategorien, Ligen, Teile, Vereine)
     const dl = (id, werte) => { const el = root.querySelector(`#${id}`); if (el) el.innerHTML = [...new Set(werte.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')).map(w => `<option value="${esc(w)}">`).join(''); };
@@ -111,7 +114,7 @@ export async function mount(root) {
   let timer;
   const spaeter = () => { clearTimeout(timer); timer = setTimeout(() => laden().then(zeichneTab).catch(() => {}), 500); };
   const kanal = sb.channel('meinestats-live');
-  for (const table of TABELLEN) kanal.on('postgres_changes', { event: '*', schema: 'public', table }, spaeter);
+  for (const table of [...TABELLEN, 'ms_werdegang']) kanal.on('postgres_changes', { event: '*', schema: 'public', table }, spaeter);
   kanal.subscribe();
   const aufraeumen = () => { clearTimeout(timer); sb.removeChannel(kanal); };
 
@@ -210,6 +213,8 @@ export async function mount(root) {
         </div>
       </section>
 
+      ${werdegangHTML()}
+
       <section class="ms-karte">
         <h3 class="gruppe">👀 Als Fan <span>${plural(ligen, 'Liga', 'Ligen')}</span></h3>
         ${fanAb ? `<p class="muted klein">ab Saison ${esc(fanAb)}</p>` : ''}
@@ -227,6 +232,101 @@ export async function mount(root) {
       </section>` : ''}
       ${!D.A.length ? `<div class="hinweis"><p>Noch keine Daten. Unter <b>Spiele</b> mit ＋ die erste Saison anlegen.</p></div>` : ''}`;
     ziel.querySelectorAll('.ms-spiele [data-sp]').forEach(b => b.addEventListener('click', () => oeffneSpiel(D.SP.find(s => s.id === b.dataset.sp))));
+    const jun = ziel.querySelector('.ms-jun');
+    if (jun) {
+      jun.addEventListener('toggle', () => { junOffen = jun.open; });
+      jun.addEventListener('click', e => {
+        if (e.target.closest('.ms-wg-neu')) return oeffneWerdegang(null);
+        const w = e.target.closest('[data-wg]');
+        if (w) oeffneWerdegang(D.WG.find(x => x.id === w.dataset.wg));
+      });
+    }
+  }
+
+  // ---- Junioren-Werdegang (ungefähr, isoliert – fliesst in keine andere Statistik ein) ----
+  function werdegangHTML() {
+    if (D.wgFehlt) return '';
+    const liste = [...D.WG].sort((a, b) => M.saisonSchluessel(b.saison) - M.saisonSchluessel(a.saison)
+      || String(a.erstellt_am || '').localeCompare(String(b.erstellt_am || '')));
+    if (!liste.length && ro) return '';
+    const saisons = new Set(liste.map(w => M.saisonName(w.saison))).size;
+    const spiele = liste.reduce((n, w) => n + (w.spiele ?? 0), 0);
+    return `
+      <details class="ms-karte ms-jun" ${junOffen ? 'open' : ''}>
+        <summary><h3 class="gruppe">🧒 Junioren-Werdegang <span>${plural(saisons, 'Saison', 'Saisons')}</span></h3></summary>
+        <p class="ms-jun-hinweis">⚠️ Ungefähre Angaben, keine genauen Statistiken – zeigt den Werdegang. Fliesst in keine andere Zahl ein.</p>
+        ${liste.length ? `<p class="muted klein">${plural(saisons, 'Saison', 'Saisons')}${spiele ? ` · ca. ${spiele} Spiele` : ''}</p>` : ''}
+        ${!ro ? '<div><button class="btn primary small ms-wg-neu">＋ Eintrag</button></div>' : ''}
+        <ul class="ms-wg">${liste.map(w => `
+          <li><button class="ms-wg-zeile" data-wg="${w.id}" ${ro ? 'tabindex="-1"' : ''}>
+            <span class="ms-wg-saison">${esc(w.saison)}</span>
+            <span class="ms-mitte">
+              <b>${esc([vName(w.verein_id), w.team].filter(Boolean).join(' – ') || '–')}</b>
+              <small>${[w.ohne_meisterschaft ? 'ohne Meisterschaft' : w.liga && esc(w.liga), w.spiele != null && `ca. ${w.spiele} Spiele`].filter(Boolean).join(' · ')}</small>
+              ${w.notiz ? `<small class="ms-wg-notiz">${esc(w.notiz)}</small>` : ''}
+            </span>
+          </button></li>`).join('') || '<li class="muted klein">Noch keine Einträge.</li>'}</ul>
+      </details>`;
+  }
+
+  function oeffneWerdegang(w) {
+    if (ro) return;
+    const dlg = root.querySelector('.ms-dlg-verein');
+    const f = dlg.querySelector('form');
+    f.innerHTML = `
+      <div><h2>🧒 ${w ? 'Eintrag ändern' : '＋ Junioren-Eintrag'}</h2><p class="muted klein">Ungefähre Angaben genügen – alles ausser Saison ist freiwillig.</p></div>
+      <label>Saison<input name="saison" list="ms-dl-saison" placeholder="z.B. 2016/17" autocomplete="off"></label>
+      <div class="ms-pick p-verein"><span class="lbl">Verein</span><input autocomplete="off" placeholder="Verein suchen …"><div class="ms-vor" hidden></div></div>
+      <div class="ms-reihe">
+        <label>Team / Stufe<input name="team" list="ms-dl-wgteam" placeholder="z.B. Junioren C" autocomplete="off"></label>
+        <label>Liga<input name="liga" placeholder="z.B. Regional" autocomplete="off"></label>
+      </div>
+      <datalist id="ms-dl-wgteam">${[...new Set(D.WG.map(x => x.team).filter(Boolean))].map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+      <label class="ms-check"><input type="checkbox" name="ohne_meisterschaft"> Ohne Meisterschaft (nur Trainings/Turniere)</label>
+      <label class="schmal">Anzahl Spiele (ca.)<input type="number" name="spiele" min="0" max="999" inputmode="numeric"></label>
+      <label>Notiz<textarea name="notiz" rows="3" placeholder="z.B. auf dem Feld, 5 Tore · Wechsel ins Tor im Winter"></textarea></label>
+      <p class="form-error error" hidden></p>
+      <div class="dlg-actions">
+        ${w ? '<button type="button" class="btn danger btn-weg">🗑</button><span class="ms-luecke"></span>' : ''}
+        <button type="button" class="btn ghost btn-abbr">Abbrechen</button>
+        <button class="btn primary">Speichern</button>
+      </div>`;
+    const pV = vereinPicker(f.querySelector('.p-verein'), () => [...new Set(D.WG.map(x => x.verein_id).filter(Boolean))]);
+    f.saison.value = w?.saison || ''; pV.set(VM.get(w?.verein_id));
+    f.team.value = w?.team || ''; f.liga.value = w?.liga || '';
+    f.ohne_meisterschaft.checked = !!w?.ohne_meisterschaft;
+    f.spiele.value = w?.spiele ?? ''; f.notiz.value = w?.notiz || '';
+    const ligaSicht = () => { f.liga.disabled = f.ohne_meisterschaft.checked; };
+    f.ohne_meisterschaft.onchange = ligaSicht; ligaSicht();
+    const fehler = msg => { const el = f.querySelector('.form-error'); el.textContent = msg; el.hidden = !msg; };
+    f.querySelector('.btn-abbr').onclick = () => dlg.close();
+    f.querySelector('.btn-weg')?.addEventListener('click', async () => {
+      if (!confirm(`Eintrag ${w.saison} löschen?`)) return;
+      const { error } = await sb.from('ms_werdegang').delete().eq('id', w.id);
+      if (error) return fehler(fehlerText(error));
+      dlg.close(); toast('Gelöscht'); neu();
+    });
+    f.onsubmit = async e => {
+      e.preventDefault();
+      fehler('');
+      const row = {
+        saison: f.saison.value.trim(),
+        team: f.team.value.trim() || null,
+        ohne_meisterschaft: f.ohne_meisterschaft.checked,
+        liga: f.ohne_meisterschaft.checked ? null : f.liga.value.trim() || null,
+        spiele: f.spiele.value === '' ? null : Math.trunc(+f.spiele.value),
+        notiz: f.notiz.value.trim() || null,
+      };
+      if (!row.saison) return fehler('Saison ausfüllen.');
+      try {
+        row.verein_id = await vereinAus(pV, 'Verein');
+        const { error } = w ? await sb.from('ms_werdegang').update(row).eq('id', w.id) : await sb.from('ms_werdegang').insert(row);
+        if (error) throw error;
+        junOffen = true;
+        dlg.close(); toast('Gespeichert', 'ok'); neu();
+      } catch (err) { fehler(fehlerText(err)); }
+    };
+    dlg.showModal();
   }
 
   // Eine Spiel-Zeile (Liste)
@@ -579,7 +679,7 @@ export async function mount(root) {
   // ==============================================================
   function tabVerwaltung(ziel) {
     const nutzV = id => D.SP.filter(s => s.gegner_id === id || s.heim_id === id || s.gast_id === id).length
-      + D.TB.filter(z => z.verein_id === id).length + D.A.filter(a => a.verein_id === id).length;
+      + D.TB.filter(z => z.verein_id === id).length + D.A.filter(a => a.verein_id === id).length + D.WG.filter(w => w.verein_id === id).length;
     const nutzH = id => D.SP.filter(s => s.halle_id === id).length;
     const korb = D.A.filter(a => a.geloescht_am);
     const q = M.norm(vwSuche);
@@ -1027,7 +1127,7 @@ export async function mount(root) {
       if (!ziel) return fehler('Ziel-Verein aus der Liste wählen.');
       if (!confirm(`«${v.name}» mit «${ziel.name}» zusammenführen?\n\nAlles von «${v.name}» gehört danach zu «${ziel.name}».`)) return;
       try {
-        for (const [tab, spalten] of [['ms_spiele', ['gegner_id', 'heim_id', 'gast_id']], ['ms_tabellen', ['verein_id']], ['ms_abschnitte', ['verein_id']]])
+        for (const [tab, spalten] of [['ms_spiele', ['gegner_id', 'heim_id', 'gast_id']], ['ms_tabellen', ['verein_id']], ['ms_abschnitte', ['verein_id']], ...(D.wgFehlt ? [] : [['ms_werdegang', ['verein_id']]])])
           for (const sp of spalten) { const { error } = await sb.from(tab).update({ [sp]: ziel.id }).eq(sp, v.id); if (error) throw error; }
         const r = await sb.from('ms_vereine').delete().eq('id', v.id); if (r.error) throw r.error;
         dlg.close(); toast(`Zusammengeführt mit ${ziel.name}`, 'ok'); neu();

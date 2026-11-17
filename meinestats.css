@@ -190,3 +190,17 @@
 .ms-hl .ms-g-name { flex: 1; display: grid; gap: 3px; }
 .ms-hl .ms-balken { height: 6px; }
 .ms-h-b { font-size: .7rem; color: var(--muted); font-weight: 500; }
+
+/* Junioren-Werdegang (Übersicht, zugeklappt) */
+.ms-jun > summary { list-style: none; cursor: pointer; position: relative; padding-right: 24px; }
+.ms-jun > summary::-webkit-details-marker { display: none; }
+.ms-jun > summary::after { content: '▾'; position: absolute; right: 0; top: 0; color: var(--muted); transition: transform .15s; }
+.ms-jun[open] > summary::after { transform: rotate(180deg); }
+.ms-jun:not([open]) { opacity: .85; }
+.ms-jun-hinweis { margin: 0; font-size: .82rem; line-height: 1.45; background: #fef3c7; color: #92400e; border-radius: 8px; padding: 8px 10px; }
+.ms-wg { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ms-wg-zeile { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: 62px 1fr; gap: 8px; padding: 7px 6px; border-radius: 8px; }
+.ms-wg-zeile:hover { background: var(--bg); }
+.ms-wg-saison { font-size: .8rem; font-weight: 700; color: var(--team); }
+.ms-wg-notiz { font-style: italic; color: #334155 !important; white-space: pre-wrap; }
+.ms-form textarea:disabled, .ms-form input:disabled { background: var(--bg); color: var(--muted); }
