@@ -91,6 +91,8 @@ export async function mount(root) {
   // Aktive (nicht im Papierkorb) Abschnitte + ihre Spiele
   const aktivA = () => D.A.filter(a => !a.geloescht_am);
   const spieleVon = id => M.sortiereSpiele(D.SP.filter(s => s.abschnitt_id === id));
+  // Anzeige: neueste oben, Spiele ohne Datum (z.B. abgesagt) bleiben unten
+  const neuesteZuerst = liste => [...liste.filter(s => s.datum).reverse(), ...liste.filter(s => !s.datum)];
   const aktiveSpiele = () => { const ids = new Set(aktivA().map(a => a.id)); return D.SP.filter(s => ids.has(s.abschnitt_id)); };
   const bereichVon = sp => AM.get(sp.abschnitt_id)?.bereich;
   const vName = id => VM.get(id)?.name ?? '';
@@ -287,9 +289,9 @@ export async function mount(root) {
       if (a.bereich === 'spieler') info += ` · ${meine.length}× im Tor, ${gezaehlt.filter(s => s.ich === 'ersatz').length}× Ersatz`;
       if (raenge.length) info += ` · ${raenge.map(r => `${r.rang}./${r.von}`).join(', ')}`;
     }
-    // Spiele gruppiert nach Teil (z.B. «La Saga Tenero», «Prague Games»)
+    // Spiele gruppiert nach Teil (z.B. «La Saga Tenero», «Prague Games») – neueste oben
     let zuletztTeil = null;
-    const zeilen = sp.map(s => {
+    const zeilen = neuesteZuerst(sp).map(s => {
       const kopf = (s.teil || '') !== (zuletztTeil || '') && s.teil ? `<li class="ms-teil">${esc(s.teil)}</li>` : '';
       zuletztTeil = s.teil || zuletztTeil;
       return kopf + spielZeile(s);
@@ -304,14 +306,14 @@ export async function mount(root) {
         </summary>
         <div class="ms-block-inhalt">
           ${a.gruppe || a.staff ? `<p class="ms-meta">${a.gruppe ? `<b>${esc(a.gruppe)}</b>` : ''}${a.staff ? `<span>${esc(a.staff).replace(/\n/g, '<br>')}</span>` : ''}</p>` : ''}
-          ${a.notiz ? `<p class="ms-notiz">${esc(a.notiz)}</p>` : ''}
-          <ul class="ms-spiele">${zeilen || '<li class="muted klein">Noch keine Spiele.</li>'}</ul>
-          ${titel.map(t => tabelleHTML(a, t)).join('')}
           ${!ro ? `<div class="ms-aktionen">
             <button class="btn primary small" data-act="spiel" data-a="${a.id}">＋ Spiel</button>
             ${!fan ? `<button class="btn ghost small" data-act="tabelle" data-a="${a.id}">＋ Rangtabelle</button>` : ''}
             <button class="btn ghost small" data-act="edit" data-a="${a.id}">✏️ ${fan ? 'Saison' : 'Saison/Team'}</button>
           </div>` : ''}
+          ${a.notiz ? `<p class="ms-notiz">${esc(a.notiz)}</p>` : ''}
+          <ul class="ms-spiele">${zeilen || '<li class="muted klein">Noch keine Spiele.</li>'}</ul>
+          ${titel.map(t => tabelleHTML(a, t)).join('')}
         </div>
       </details>`;
   }
@@ -472,7 +474,7 @@ export async function mount(root) {
           <li><details><summary>
             <span class="ms-g-name">${esc(vName(g.id))}${vLand(g.id)}</span>
             <span class="ms-g-zahlen"><b>${g.anzahl}</b> Sp · <span class="s">${g.s}</span>-<span class="u">${g.u}</span>-<span class="n">${g.n}</span> · ${g.t}:${g.gt}</span>
-          </summary><ul class="ms-spiele">${g.spiele.map(s => spielZeile(s, { mitBereich: true })).join('')}</ul></details></li>`).join('')
+          </summary><ul class="ms-spiele">${neuesteZuerst(g.spiele).map(s => spielZeile(s, { mitBereich: true })).join('')}</ul></details></li>`).join('')
           || '<li class="muted klein">Kein Gegner gefunden.</li>';
       };
       zeichneG();
