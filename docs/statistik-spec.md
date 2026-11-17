@@ -60,7 +60,7 @@ Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude lie
 
 ## Penaltyschiessen (SQL 15, 17.11.2026, mit Marc abgestimmt)
 - Eigene Tabelle `match_penaltys` (Reihenfolge `nr`, team wir/gegner, wir mit Person, Gegner nur Nummer, `tor` ja/nein). Zählt **nie** in Skorerliste, Tore, Goalie-Gegentore oder Analyse.
-- **Match:** Block «🎯 Penaltyschiessen» unter dem Telegramm (bei n.P. oder wenn Penaltys erfasst sind): Runde für Runde ✅/❌, Stand, ＋ Wir / ＋ Gegner, antippen = bearbeiten/löschen, 🥅 Goalie (Standard automatisch = wer am Spielende im Tor stand, `goalieAmEnde`; von Hand `einsaetze.penalty_goalie_id`).
+- **Match:** Block «🎯 Penaltyschiessen» unter dem Telegramm (bei n.P. oder wenn Penaltys erfasst sind): Runde für Runde ✅/❌ (letzter Schuss zuoberst, Nummer = Schussreihenfolge), Stand, ＋ Wir / ＋ Gegner, antippen = bearbeiten/löschen, 🥅 Goalie (Standard automatisch = wer am Spielende im Tor stand, `goalieAmEnde`; von Hand `einsaetze.penalty_goalie_id`).
 - **Tab Team:** Karte «🎯 Penaltyschiessen»: gewonnen:verloren, Trefferquote wir, Gegner gestoppt, Tabelle Schütz:innen (Versuche, Tore, %), Goalies (Penaltys gegen, ohne Tor = gehalten oder verschossen, %). Code: `penaltyStatistik` in `statistik-logik.js`.
 - Import: optional `"penaltys": [{"team": "wir", "nr": 8, "name": "…", "tor": true}, {"team": "gegner", "gegner_nr": 14, "tor": false}]` in Schussreihenfolge; ersetzt die Penaltys nur, wenn der Import welche enthält.
 

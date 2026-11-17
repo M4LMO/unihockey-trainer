@@ -614,7 +614,7 @@ export async function mount(root) {
           <li class="st-ev ${e.art}"><span class="st-zeit">${L.zeitText(e.zeit)}</span><span class="st-ev-icon">${L.ART[e.art].icon}</span>
             <span class="st-ev-text">${evText(e)}</span>${e.situation ? `<span class="st-sit ${e.situation}">${L.SITUATION[e.situation].kurz}</span>` : ''}</li>`).join('')}</ul>` : ''}
         ${D.penaltys?.length ? `<h3 class="gruppe">🎯 Penaltyschiessen <span>${D.penaltys.filter(p => p.team === 'wir' && p.tor).length}:${D.penaltys.filter(p => p.team === 'gegner' && p.tor).length}</span></h3>
-        <ol class="st-pen-liste">${D.penaltys.map((p, i) => `<li><div class="st-pen-z ${p.team}"><span class="st-pen-nr">${i + 1}</span>
+        <ol class="st-pen-liste">${D.penaltys.map((p, i) => [p, i]).reverse().map(([p, i]) => `<li><div class="st-pen-z ${p.team}"><span class="st-pen-nr">${i + 1}</span>
           <span class="st-pen-wer">${p.team === 'wir' ? `${p.nr != null ? `${p.nr} ` : ''}${esc(p.name || 'unbekannt')}` : `Gegner${p.gegner_nr != null ? ` #${p.gegner_nr}` : ''}`}</span>
           <span class="st-pen-erg ${p.tor ? 'tor' : ''}">${p.tor ? '✅ Tor' : '❌ kein Tor'}</span></div></li>`).join('')}</ol>` : ''}
         ${D.manuell ? '<p class="muted klein pad">Aufstellung und Ereignisse erfasst du nach dem Speichern im Match.</p>' : ''}
@@ -884,13 +884,13 @@ export async function mount(root) {
       return `
         <h3 class="gruppe">🎯 Penaltyschiessen${pens.length ? ` <span>${st.wir}:${st.gegner}</span>` : ''}</h3>
         <section class="st-karte st-pen">
-          ${pens.length ? `<ol class="st-pen-liste">${pens.map((x, i) => `<li>
+          ${pens.length ? `<ol class="st-pen-liste">${pens.map((x, i) => [x, i]).reverse().map(([x, i]) => `<li>
             <button class="st-pen-z ${x.team}" data-id="${x.id}" ${ro ? 'disabled' : ''}>
               <span class="st-pen-nr">${i + 1}</span>
               <span class="st-pen-wer">${x.team === 'wir' ? (x.kader_id ? mLabel(x.kader_id) : '<i>unbekannt</i>') : `Gegner${x.gegner_nr != null ? ` <small>#${x.gegner_nr}</small>` : ''}`}</span>
               <span class="st-pen-erg ${x.tor ? 'tor' : ''}">${x.tor ? '✅ Tor' : '❌ kein Tor'}</span>
             </button></li>`).join('')}</ol>`
-            : `<p class="muted klein">Noch keine Penaltys erfasst.${ro ? '' : ' Reihenfolge wie geschossen: ＋ Wir / ＋ Gegner.'}</p>`}
+            : `<p class="muted klein">Noch keine Penaltys erfasst.${ro ? '' : ' Reihenfolge wie geschossen: ＋ Wir / ＋ Gegner (letzter Schuss erscheint zuoberst).'}</p>`}
           <p class="klein">🥅 Goalie: <b>${g ? mLabel(g) : '–'}</b>${E.penalty_goalie_id ? '' : ' <small class="muted">(automatisch: am Spielende im Tor)</small>'}</p>
           ${ro ? '' : `<div class="st-links">
             <button class="btn ghost small st-pen-wir">＋ Wir</button>
