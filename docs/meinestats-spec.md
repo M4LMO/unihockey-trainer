@@ -18,8 +18,8 @@ Marcs persönliche Statistik (bisher OneNote): eigene Spiele **als Trainer**, **
 
 ## Ansichten
 - **Übersicht:** Spiele erlebt total; Trainer (Spiele dabei, S/U/N, Siegquote, Tore), Goalie (Matchblatt, im Tor, Ersatz, Bilanz im Tor, Gegentore + Ø, Zu-Null, erstes Spiel), Fan (Spiele, Halle/Livestream, meistgesehenes Team, Tore); zuletzt gespielte Spiele.
-- **Spiele:** Trainer/Spieler/Fan, aufklappbare Blöcke pro Saison/Team (Gruppe, Staff, Notiz, Spiele, Rangtabellen). Admin: ＋ Spiel, ＋ Rangtabelle, ✏️ Saison/Team (🗑 → Papierkorb), runder ＋ = neue Saison/Team.
-- **Auswertung:** Filter Bereich, Saison, «Zählen» (nur meine Spiele = Trainer dabei / im Tor · inkl. Ersatz · alle Teamspiele), Spielarten. Bilanz pro Saison/Team (mit Schlussrang), Gegner-Bilanz (Suche, Sortierung, aufklappbar mit Spielen), Fan: Ligen + meistgesehene Teams, Hallen & Orte.
+- **Spiele:** Trainer/Spieler/Fan, aufklappbare Blöcke pro Saison/Team (Gruppe, Staff, Knöpfe, Notiz, Spiele **neueste oben**, ohne Datum unten, Rangtabellen). Admin-Knöpfe oben im Block: ＋ Spiel, ＋ Rangtabelle, ✏️ Saison/Team (🗑 → Papierkorb), runder ＋ = neue Saison/Team.
+- **Auswertung:** Filter Bereich, Saison, «Zählen» (nur meine Spiele = Trainer dabei / im Tor · inkl. Ersatz · alle Teamspiele), Spielarten. Bilanz pro Saison/Team (mit Schlussrang), Gegner-Bilanz (Suche, Sortierung, aufklappbar mit Spielen, neueste oben), Fan: Ligen + meistgesehene Teams, Hallen & Orte.
 - **Verwaltung:** Vereine & Hallen bearbeiten, **zusammenführen** (alles geht an den Ziel-Eintrag, alter Eintrag wird gelöscht), Papierkorb (wiederherstellen / endgültig mit Eintippen).
 - Resultatfarben: Sieg grün, Niederlage rot, Unentschieden orange; n.V./n.P. zählen als Sieg/Niederlage (separat ausgewiesen).
 
