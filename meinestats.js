@@ -199,6 +199,7 @@ export async function mount(root) {
 
       <section class="ms-karte">
         <h3 class="gruppe">🥅 Als Spieler (Goalie) <span>${plural(vereineS, 'Verein', 'Vereine')}</span></h3>
+        <p class="muted klein">im Aktiv-Bereich, nicht Junioren</p>
         <div class="ms-kpis">
           ${kpi(blatt.length, 'auf dem Matchblatt', `${imTor.length} im Tor · ${blatt.length - imTor.length} Ersatz`)}
           ${kpi(sun(bS), 'Bilanz im Tor', bS.snv || bS.nnv ? `davon ${bS.snv} S / ${bS.nnv} N n.V./n.P.` : '')}
