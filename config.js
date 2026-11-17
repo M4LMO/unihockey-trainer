@@ -8,4 +8,4 @@ export const SUPABASE_URL = 'https://psfygduxfqtxpyfwebew.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_bYbMux1UFuRF8PSPSQzDsQ_cZfNhv7u';
 
 // Name, der oben in der App erscheint
-export const APP_NAME = 'Trainer Tools';
+export const APP_NAME = '\\_.';

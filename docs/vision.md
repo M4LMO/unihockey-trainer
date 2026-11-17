@@ -1,4 +1,6 @@
-# Trainer Tools – Vision & Technik (Stand 16.11.2026, Meine Stats)
+# `\_.` – Vision & Technik (Stand 17.11.2026, App-Name)
+
+App-Name: **`\_.`** (Backslash, Unterstrich, Punkt; früher „Trainer Tools“). Adresse bleibt https://m4lmo.github.io/unihockey-trainer. Das Sicherungsformat heisst weiterhin `trainer-tools-sicherung-1` (Kompatibilität).
 
 ## Ziel
 Eine gemeinsame App für den ganzen Trainerstaff, die die Trainerarbeit im Unihockey vereinfacht. Tools werden Stück für Stück erarbeitet und in die App eingebettet.

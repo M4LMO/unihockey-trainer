@@ -1,4 +1,4 @@
-# CLAUDE.md – Trainer Tools (Unihockey)
+# CLAUDE.md – `\_.` (Unihockey-Trainer-App, früher „Trainer Tools“)
 
 Web-App für den Trainerstaff im Unihockey (Kader, Linien, Statistik …). Besitzer und Admin: **Marc**.
 Hosting: GitHub Pages aus `main` (Root) → https://m4lmo.github.io/unihockey-trainer · Datenbank/Login: Supabase.
