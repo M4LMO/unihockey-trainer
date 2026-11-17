@@ -184,3 +184,9 @@
 .ms-dlg-frage .btn-ja { background: var(--err); color: #fff; }
 .ms-dlg-frage .btn-ja:disabled { opacity: .4; }
 .ms-fab[hidden] { display: none; }
+
+/* Hallen & Orte (Auswertung) */
+.ms-ho button { padding: 6px 14px; }
+.ms-hl .ms-g-name { flex: 1; display: grid; gap: 3px; }
+.ms-hl .ms-balken { height: 6px; }
+.ms-h-b { font-size: .7rem; color: var(--muted); font-weight: 500; }

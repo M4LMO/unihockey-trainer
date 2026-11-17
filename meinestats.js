@@ -67,6 +67,8 @@ export async function mount(root) {
     kategorie: '',
     suche: '',
     sort: 'anzahl',
+    ho: 'halle',     // Hallen-Liste: 'halle' | 'ort'
+    hSuche: '',
   };
   const offen = new Set();         // aufgeklappte Saison-Blöcke
   let ersterAufbau = true;
@@ -475,28 +477,63 @@ export async function mount(root) {
           </div>
         </section>`;
     }
-    // ---- Hallen & Orte ----
-    const mitHalle = spiele.filter(s => s.halle_id);
-    if (mitHalle.length) {
-      const hallen = M.zaehle(mitHalle, s => s.halle_id);
-      const orte = M.zaehle(mitHalle, s => HM.get(s.halle_id)?.ort);
-      const proB = (hid, b) => mitHalle.filter(s => s.halle_id === hid && bereichVon(s) === b).length;
+    // ---- Hallen & Orte (antippen → alle Spiele dort) ----
+    const mitOrt = spiele.filter(s => s.halle_id || s.livestream);
+    if (mitOrt.length) {
       html += `
         <section class="ms-karte">
-          <h3 class="gruppe">Hallen & Orte <span>${plural(hallen.length, 'Halle', 'Hallen')} · ${plural(orte.length, 'Ort', 'Orte')}</span></h3>
-          <div class="ms-zwei">
-            <div><h4>Hallen</h4>${balkenListe(hallen.map(x => ({
-              t: M.halleText(HM.get(x.key)), n: x.n,
-              sub: F.bereich === 'alle' ? ['trainer', 'spieler', 'fan'].map(b => [b, proB(x.key, b)]).filter(([, n]) => n).map(([b, n]) => `${M.BEREICHE[b].icon}${n}`).join(' ') : '',
-            })), 12)}</div>
-            <div><h4>Orte</h4>${balkenListe(orte.map(x => ({ t: x.key, n: x.n })), 12)}</div>
+          <h3 class="gruppe">Hallen & Orte <span class="ms-h-anz"></span></h3>
+          <div class="ms-filter">
+            <div class="seg ms-ho">${[['halle', 'Hallen'], ['ort', 'Orte']].map(([k, t]) => `<button data-ho="${k}" class="${F.ho === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+            <input class="ms-h-suche" type="search" placeholder="Halle oder Ort suchen …" value="${esc(F.hSuche)}" autocomplete="off">
           </div>
+          <ul class="ms-gegner ms-hl"></ul>
+          <p class="muted klein">Antippen zeigt alle Spiele dort. Bilanz nur aus eigenen Spielen (Trainer/Spieler).</p>
         </section>`;
     }
     aw.innerHTML = html;
 
+    // Hallen-/Orte-Liste
+    const hl = aw.querySelector('.ms-hl');
+    if (hl) {
+      const LIVE = '📺 Livestream';
+      const schluessel = sp => sp.livestream ? LIVE : F.ho === 'ort' ? HM.get(sp.halle_id)?.ort : sp.halle_id;
+      const name = k => k === LIVE || F.ho === 'ort' ? k : M.halleText(HM.get(k));
+      const zeichneH = () => {
+        const gruppen = new Map();
+        for (const sp of mitOrt) { const k = schluessel(sp); if (!k) continue; if (!gruppen.has(k)) gruppen.set(k, []); gruppen.get(k).push(sp); }
+        const q = M.norm(F.hSuche);
+        const l = [...gruppen.entries()].map(([k, liste]) => ({ k, liste, t: name(k) }))
+          .filter(x => !q || M.norm(x.t).includes(q))
+          .sort((x, y) => y.liste.length - x.liste.length || x.t.localeCompare(y.t, 'de'));
+        const mx = Math.max(1, ...l.map(x => x.liste.length));
+        const nH = new Set(mitOrt.filter(x => x.halle_id).map(x => x.halle_id)).size;
+        const nO = new Set(mitOrt.filter(x => x.halle_id).map(x => HM.get(x.halle_id)?.ort)).size;
+        aw.querySelector('.ms-h-anz').textContent = `${plural(nH, 'Halle', 'Hallen')} · ${plural(nO, 'Ort', 'Orte')}`;
+        hl.innerHTML = l.map(x => {
+          const b = M.bilanz(x.liste.filter(sp => bereichVon(sp) !== 'fan'));
+          const proB = ['trainer', 'spieler', 'fan'].map(k => [k, x.liste.filter(sp => bereichVon(sp) === k).length]).filter(([, n]) => n);
+          return `<li><details><summary>
+            <span class="ms-g-name">${esc(x.t)}
+              <span class="ms-balken"><i style="width:${Math.round(100 * x.liste.length / mx)}%"></i></span>
+              ${proB.length > 1 ? `<small class="ms-h-b">${proB.map(([k, n]) => `${M.BEREICHE[k].icon}${n}`).join(' ')}</small>` : ''}</span>
+            <span class="ms-g-zahlen"><b>${x.liste.length}</b> Sp${b.sp ? ` · <span class="s">${b.s}</span>-<span class="u">${b.u}</span>-<span class="n">${b.n}</span>` : ''}</span>
+          </summary><ul class="ms-spiele">${neuesteZuerst(M.sortiereSpiele(x.liste)).map(sp => spielZeile(sp, { mitBereich: true })).join('')}</ul></details></li>`;
+        }).join('') || '<li class="muted klein">Nichts gefunden.</li>';
+      };
+      zeichneH();
+      aw.querySelector('.ms-h-suche').addEventListener('input', e => { F.hSuche = e.target.value; zeichneH(); });
+      aw.querySelector('.ms-ho').addEventListener('click', e => {
+        const b = e.target.closest('[data-ho]'); if (!b) return;
+        F.ho = b.dataset.ho;
+        aw.querySelectorAll('.ms-ho button').forEach(x => x.classList.toggle('on', x === b));
+        zeichneH();
+      });
+      hl.addEventListener('click', e => { const b = e.target.closest('[data-sp]'); if (b) oeffneSpiel(D.SP.find(sp => sp.id === b.dataset.sp)); });
+    }
+
     // Gegner-Liste (mit Suche, ohne die ganze Seite neu zu zeichnen)
-    const gl = aw.querySelector('.ms-gegner');
+    const gl = aw.querySelector('.ms-gegner:not(.ms-hl)');
     if (gl) {
       const alleG = M.gegnerBilanz(eigene);
       const zeichneG = () => {
