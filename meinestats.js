@@ -85,7 +85,7 @@ export async function mount(root) {
     dl('ms-dl-saison', A.map(a => a.saison));
     dl('ms-dl-kat', ['Meisterschaft', 'Prague Games', 'Turnier', ...A.map(a => a.kategorie)]);
     dl('ms-dl-liga', SP.map(s => s.liga));
-    dl('ms-dl-verein', D.V.flatMap(v => [v.name, ...(v.aliase || [])]));
+    dl('ms-dl-verein', D.V.map(v => v.name));
   }
 
   // Aktive (nicht im Papierkorb) Abschnitte + ihre Spiele
@@ -461,7 +461,7 @@ export async function mount(root) {
       const alleG = M.gegnerBilanz(eigene);
       const zeichneG = () => {
         const q = M.norm(F.suche);
-        let l = alleG.filter(g => !q || M.norm([vName(g.id), ...(VM.get(g.id)?.aliase || [])].join(' ')).includes(q));
+        let l = alleG.filter(g => !q || M.norm(vName(g.id)).includes(q));
         const pq = g => g.sp ? (g.s - g.n) / g.sp : 0;
         l.sort(F.sort === 'name' ? (x, y) => vName(x.id).localeCompare(vName(y.id), 'de')
           : F.sort === 'quote' ? (x, y) => pq(y) - pq(x) || y.sp - x.sp
@@ -501,17 +501,17 @@ export async function mount(root) {
     const korb = D.A.filter(a => a.geloescht_am);
     const q = M.norm(vwSuche);
     const passt = t => !q || M.norm(t).includes(q);
-    const vereine = D.V.filter(v => passt([v.name, ...(v.aliase || [])].join(' ')));
+    const vereine = D.V.filter(v => passt(v.name));
     const hallen = [...D.H].sort((a, b) => M.halleText(a).localeCompare(M.halleText(b), 'de')).filter(h => passt(M.halleText(h)));
     ziel.innerHTML = `
-      <p class="muted klein ms-vw-info">Jeder Verein und jede Halle gibt es nur einmal – so stimmen die Statistiken. Andere Schreibweisen als
-        <b>Alias</b> eintragen (z.B. «Caps» → Bern Capitals). Doppelte Einträge mit <b>Zusammenführen</b> vereinen.</p>
+      <p class="muted klein ms-vw-info">Jeder Verein und jede Halle gibt es nur einmal – so stimmen die Statistiken.
+        Namen hier ändern = überall geändert. Doppelte Einträge mit <b>Zusammenführen</b> vereinen.</p>
       <input class="ms-vw-suche" type="search" placeholder="Suchen …" value="${esc(vwSuche)}" autocomplete="off">
       <section class="ms-karte">
         <h3 class="gruppe">🏒 Vereine & Teams <span>${D.V.length}</span>${!ro ? '<button class="btn ghost small ms-neu-v">＋ Verein</button>' : ''}</h3>
         <ul class="vw-liste ms-vw">${vereine.map(v => `
           <li><button class="ms-vw-zeile" data-v="${v.id}" ${ro ? 'disabled' : ''}>
-            <span class="vw-name">${esc(v.name)}${vLand(v.id)}${v.aliase?.length ? `<small class="muted">auch: ${esc(v.aliase.join(', '))}</small>` : ''}</span>
+            <span class="vw-name">${esc(v.name)}${vLand(v.id)}</span>
             <span class="badge">${nutzV(v.id)}</span>
           </button></li>`).join('') || '<li class="muted">Keine.</li>'}</ul>
       </section>
@@ -594,9 +594,7 @@ export async function mount(root) {
     };
   }
   function aliasSub(v, q) {
-    const qn = M.norm(q);
-    const a = !M.norm(v.name).includes(qn) && (v.aliase || []).find(x => M.norm(x).includes(qn));
-    return `${v.land ? ` <small>${esc(v.land)}</small>` : ''}${a ? ` <small>(«${esc(a)}»)</small>` : ''}`;
+    return v.land ? ` <small>${esc(v.land)}</small>` : '';
   }
   function vereinPicker(wrap) { return machePicker(wrap, { suche: q => M.sucheVereine(D.V, q), text: v => v.name, sub: aliasSub }); }
   function hallenPicker(wrap) { return machePicker(wrap, { suche: q => M.sucheHallen(D.H, q), text: M.halleText }); }
@@ -908,9 +906,8 @@ export async function mount(root) {
       <h2>${v ? 'Verein ändern' : '＋ Verein'}</h2>
       <label>Name<input name="name" required autocomplete="off"></label>
       <label>Land (leer = Schweiz)<input name="land" placeholder="z.B. CZE, FIN, SWE" maxlength="10" autocomplete="off"></label>
-      <label>Andere Schreibweisen (Alias), mit Komma getrennt<textarea name="aliase" rows="2" placeholder="z.B. Caps, Bern Capitals Ost"></textarea></label>
       ${v ? `<details class="ms-merge"><summary>🔗 Mit anderem Verein zusammenführen …</summary>
-        <p class="muted klein">Alle Spiele und Tabellen von «${esc(v.name)}» gehen an den gewählten Verein. «${esc(v.name)}» wird dort als Alias gespeichert und hier gelöscht.</p>
+        <p class="muted klein">Alle Spiele und Tabellen von «${esc(v.name)}» gehen an den gewählten Verein. «${esc(v.name)}» wird danach gelöscht.</p>
         <div class="ms-pick p-ziel"><span class="lbl">Zusammenführen mit</span><input autocomplete="off" placeholder="Verein suchen …"><div class="ms-vor" hidden></div></div>
         <button type="button" class="btn ghost small btn-merge">Zusammenführen</button>
       </details>` : ''}
@@ -920,7 +917,7 @@ export async function mount(root) {
         <button type="button" class="btn ghost btn-abbr">Abbrechen</button>
         <button class="btn primary">Speichern</button>
       </div>`;
-    f.name.value = v?.name || ''; f.land.value = v?.land || ''; f.aliase.value = (v?.aliase || []).join(', ');
+    f.name.value = v?.name || ''; f.land.value = v?.land || '';
     const fehler = msg => { const el = f.querySelector('.form-error'); el.textContent = msg; el.hidden = !msg; };
     f.querySelector('.btn-abbr').onclick = () => dlg.close();
     const pZ = v ? machePicker(f.querySelector('.p-ziel'), { suche: q => M.sucheVereine(D.V.filter(x => x.id !== v.id), q), text: x => x.name, sub: aliasSub }) : null;
@@ -931,9 +928,7 @@ export async function mount(root) {
       try {
         for (const [tab, spalten] of [['ms_spiele', ['gegner_id', 'heim_id', 'gast_id']], ['ms_tabellen', ['verein_id']], ['ms_abschnitte', ['verein_id']]])
           for (const sp of spalten) { const { error } = await sb.from(tab).update({ [sp]: ziel.id }).eq(sp, v.id); if (error) throw error; }
-        const aliase = [...new Set([...(ziel.aliase || []), v.name, ...(v.aliase || [])])].filter(x => M.norm(x) !== M.norm(ziel.name));
-        let r = await sb.from('ms_vereine').update({ aliase }).eq('id', ziel.id); if (r.error) throw r.error;
-        r = await sb.from('ms_vereine').delete().eq('id', v.id); if (r.error) throw r.error;
+        const r = await sb.from('ms_vereine').delete().eq('id', v.id); if (r.error) throw r.error;
         dlg.close(); toast(`Zusammengeführt mit ${ziel.name}`, 'ok'); neu();
       } catch (err) { fehler(fehlerText(err)); }
     });
@@ -947,10 +942,9 @@ export async function mount(root) {
       e.preventDefault();
       const name = f.name.value.trim();
       if (!name) return fehler('Name ausfüllen.');
-      const aliase = [...new Set(f.aliase.value.split(',').map(x => x.trim()).filter(Boolean))];
-      const doppelt = D.V.find(x => x.id !== v?.id && [name, ...aliase].some(n => M.norm(n) === M.norm(x.name) || (x.aliase || []).some(y => M.norm(y) === M.norm(n))));
-      if (doppelt && !confirm(`Achtung: «${doppelt.name}» hat schon diesen Namen/Alias. Trotzdem speichern?\n\n(Besser: Zusammenführen)`)) return;
-      const row = { name, land: f.land.value.trim().toUpperCase() || null, aliase };
+      const doppelt = D.V.find(x => x.id !== v?.id && M.norm(name) === M.norm(x.name));
+      if (doppelt) return fehler(`«${doppelt.name}» gibt es schon – stattdessen «Zusammenführen» verwenden.`);
+      const row = { name, land: f.land.value.trim().toUpperCase() || null };
       const { error } = v ? await sb.from('ms_vereine').update(row).eq('id', v.id) : await sb.from('ms_vereine').insert(row);
       if (error) return fehler(fehlerText(error));
       dlg.close(); toast('Gespeichert', 'ok'); neu();

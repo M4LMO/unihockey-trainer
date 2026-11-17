@@ -48,30 +48,23 @@ export function norm(s) {
     .replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-// Vereine suchen (Name + Aliase). Treffer am Wortanfang zuerst.
+// Vereine suchen (nach Name). Treffer am Wortanfang zuerst.
 export function sucheVereine(vereine, text, max = 8) {
   const q = norm(text);
   if (!q) return [];
   const punkte = v => {
-    let best = 0;
-    for (const n of [v.name, ...(v.aliase || [])]) {
-      const x = norm(n);
-      if (x === q) return 4;
-      if (x.startsWith(q)) best = Math.max(best, 3);
-      else if ((' ' + x).includes(' ' + q)) best = Math.max(best, 2);
-      else if (x.includes(q)) best = Math.max(best, 1);
-    }
-    return best;
+    const x = norm(v.name);
+    return x === q ? 4 : x.startsWith(q) ? 3 : (' ' + x).includes(' ' + q) ? 2 : x.includes(q) ? 1 : 0;
   };
   return vereine.map(v => [v, punkte(v)]).filter(([, p]) => p > 0)
     .sort((a, b) => b[1] - a[1] || a[0].name.localeCompare(b[0].name, 'de'))
     .slice(0, max).map(([v]) => v);
 }
-// Genau dieser Name (oder Alias)?
+// Genau dieser Name?
 export function findeVerein(vereine, text) {
   const q = norm(text);
   if (!q) return null;
-  return vereine.find(v => norm(v.name) === q) || vereine.find(v => (v.aliase || []).some(a => norm(a) === q)) || null;
+  return vereine.find(v => norm(v.name) === q) || null;
 }
 
 export const halleText = h => h ? (h.name ? `${h.ort}, ${h.name}` : h.ort) : '';
