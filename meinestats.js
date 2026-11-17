@@ -175,16 +175,18 @@ export async function mount(root) {
     // Fan-Spiele werden erst seit dieser Saison erfasst (früheste Fan-Saison, kurz: «26/27»)
     const fanErste = aB('fan').map(a => M.saisonSchluessel(a.saison)).filter(Boolean).sort((x, y) => x - y)[0];
     const fanAb = fanErste ? `${String(fanErste % 100).padStart(2, '0')}/${String((fanErste + 1) % 100).padStart(2, '0')}` : '';
-    const hallen = new Set([...trDabei, ...blatt, ...fan].map(s => s.halle_id).filter(Boolean)).size;
-    const erlebt = trDabei.length + blatt.length + fan.length;
+    // Grosse Zahl: nur Spiele als Trainer (dabei) oder Spieler (Matchblatt); Fan-Spiele separat darunter
+    const hallen = new Set([...trDabei, ...blatt].map(s => s.halle_id).filter(Boolean)).size;
+    const gespielt = trDabei.length + blatt.length;
     const zuletzt = M.sortiereSpiele([...trDabei, ...blatt, ...fan].filter(s => s.datum && s.datum <= heute())).reverse().slice(0, 6);
     const offeneSpiele = alle.filter(s => !s.abgesagt && s.datum && s.tore1 == null && bereichVon(s) !== 'fan').length;
     const sun = b => `${b.s}<small>S</small> ${b.u}<small>U</small> ${b.n}<small>N</small>`;
 
     ziel.innerHTML = `
       <section class="ms-karte ms-total">
-        <div class="ms-gross"><b>${erlebt}</b><span>Spiele erlebt</span></div>
-        <p class="muted klein">als Trainer dabei, als Goalie auf dem Matchblatt oder als Fan geschaut · in ${hallen} Hallen</p>
+        <div class="ms-gross"><b>${gespielt}</b><span>Spiele als Trainer oder Spieler</span></div>
+        <p class="muted klein">${trDabei.length} als Trainer dabei · ${blatt.length} als Goalie auf dem Matchblatt · in ${hallen} Hallen</p>
+        ${fan.length ? `<p class="muted klein">dazu ${plural(fan.length, 'Spiel', 'Spiele')} als Fan geschaut</p>` : ''}
       </section>
 
       <section class="ms-karte">
