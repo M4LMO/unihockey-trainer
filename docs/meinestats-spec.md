@@ -19,9 +19,13 @@ Marcs persönliche Statistik (bisher OneNote): eigene Spiele **als Trainer**, **
 ## Ansichten
 - **Übersicht:** Spiele erlebt total; Trainer (Spiele dabei, S/U/N, Siegquote, Tore), Goalie (Matchblatt, im Tor, Ersatz, Bilanz im Tor, Gegentore + Ø, Zu-Null, erstes Spiel), Fan (Spiele, Halle/Livestream, meistgesehenes Team, Tore); zuletzt gespielte Spiele.
 - **Spiele:** Trainer/Spieler/Fan, aufklappbare Blöcke pro Saison/Team (Gruppe, Staff, Knöpfe, Notiz, Spiele **neueste oben**, ohne Datum unten, Rangtabellen). Admin-Knöpfe oben im Block: ＋ Spiel, ＋ Rangtabelle, ✏️ Saison/Team (🗑 → Papierkorb), runder ＋ = neue Saison/Team.
-- **Auswertung:** Filter Bereich, **Saison** (Turnierjahr zählt zur Saison, die im Sommer beginnt: Prague Games 2026 → 2026/27; `saisonName()`), **Kategorie** (Meisterschaft, Prague Games …), **Team** (ein Team oder «Verein (alle Teams)»), «Zählen» (nur meine Spiele = Trainer dabei / im Tor · inkl. Ersatz · alle Teamspiele), Spielarten. Bilanz pro Saison/Team (mit Schlussrang), Gegner-Bilanz (Suche, Sortierung, aufklappbar mit Spielen, neueste oben), Fan: Ligen + meistgesehene Teams, Hallen & Orte.
+- **Auswertung:** Filter Bereich, **Saison** (Turnierjahr zählt zur Saison, die im Sommer beginnt: Prague Games 2026 → 2026/27; `saisonName()`), **Kategorie** (Meisterschaft, Prague Games …), **Team** (ein Team oder «Verein (alle Teams)»), – die Listen schränken sich **gegenseitig** ein (jede zeigt nur, was zu den anderen Auswahlen passt; unpassende Auswahl wird zurückgesetzt), Spielart-Knöpfe nur für vorhandene Spielarten (mit Anzahl), «Zählen» (nur meine Spiele = Trainer dabei / im Tor · inkl. Ersatz · alle Teamspiele), Spielarten. Bilanz pro Saison/Team (mit Schlussrang), Gegner-Bilanz (Suche, Sortierung, aufklappbar mit Spielen, neueste oben), Fan: Ligen + meistgesehene Teams, Hallen & Orte.
 - **Verwaltung:** Vereine & Hallen bearbeiten, **zusammenführen** (alles geht an den Ziel-Eintrag, alter Eintrag wird gelöscht), Papierkorb (wiederherstellen / endgültig mit Eintippen).
 - Resultatfarben: Sieg grün, Niederlage rot, Unentschieden orange; n.V./n.P. zählen als Sieg/Niederlage (separat ausgewiesen).
+
+## Eingabe-Hilfen
+- Spiel-Dialog: Feld Gegner/Heim/Gast bzw. Halle antippen ohne zu tippen → Vorschläge aus diesem Block (häufigste zuerst), dann aus anderen Saisons desselben Teams.
+- Saison/Team-Dialog: «Mein Verein» schlägt bisherige eigene Vereine vor; Team und Gruppe schlagen Werte vor, die zum gewählten Verein (und Team) passen.
 
 ## Dateien
 `meinestats.js` (Oberfläche), `meinestats.css`, `meinestats-logik.js` (Rechnen, Suche; ohne Oberfläche).
