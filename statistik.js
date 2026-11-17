@@ -112,7 +112,7 @@ export async function mount(root) {
   };
   dlg.addEventListener('close', () => { if (wartet) { wartet = false; spaeter(); } });
   const kanal = sb.channel('statistik-live');
-  for (const table of ['einsaetze', 'match_aufstellung', 'match_ereignisse', 'kader', 'varianten', 'linien', 'linien_spieler'])
+  for (const table of ['einsaetze', 'match_aufstellung', 'match_ereignisse', 'match_penaltys', 'kader', 'varianten', 'linien', 'linien_spieler'])
     kanal.on('postgres_changes', { event: '*', schema: 'public', table }, spaeter);
   kanal.subscribe();
 
@@ -129,7 +129,7 @@ export async function mount(root) {
   // ---- Matches eines Kaders mit Statistik --------------------
   async function ladeMatches(listeId) {
     const d = await db(sb.from('einsaetze')
-      .select('*, match_aufstellung(*), match_ereignisse(*)')
+      .select('*, match_aufstellung(*), match_ereignisse(*), match_penaltys(*)')
       .eq('liste_id', listeId).eq('typ', 'match'));
     return d.sort((a, b) => b.datum.localeCompare(a.datum) || b.erstellt_am.localeCompare(a.erstellt_am));
   }
@@ -333,6 +333,35 @@ export async function mount(root) {
           }).join('')}<p class="muted klein"><span class="st-dot f"></span> erzielt <span class="st-dot g"></span> erhalten${gemischt ? ' · Matches mit unterschiedlichem Format gemischt' : ''}</p></div>`
             : '<p class="muted klein">Noch keine Tore erfasst.</p>'}
         </section>`;
+      if (matches.length) ziel.insertAdjacentHTML('beforeend', penaltyKarte(matches));
+    }
+
+    // ---- Penaltyschiessen über die Saison (eigene Karte, nie in der Skorerliste)
+    function penaltyKarte(matches) {
+      const P = L.penaltyStatistik(matches);
+      if (!P.matches) return '';
+      const kpi = (wert, text, sub = '') => `<div><b>${wert}</b><small>${text}</small>${sub ? `<em>${sub}</em>` : ''}</div>`;
+      const quote = (a, b) => b ? `${pct(a, b)} %` : '–';
+      const schuetzen = [...P.schuetzen.entries()].sort((a, b) => b[1].t - a[1].t || (b[1].t / b[1].v) - (a[1].t / a[1].v) || b[1].v - a[1].v);
+      const goalies = [...P.goalies.entries()].sort((a, b) => b[1].v - a[1].v);
+      return `
+        <section class="st-karte">
+          <h3 class="gruppe">🎯 Penaltyschiessen <span>${plural(P.matches, 'Match', 'Matches')}</span></h3>
+          <div class="st-kpis">
+            ${kpi(`${P.gewonnen}:${P.verloren}`, 'gewonnen : verloren')}
+            ${kpi(quote(P.wir.t, P.wir.v), 'Trefferquote wir', `${P.wir.t} von ${P.wir.v}`)}
+            ${kpi(quote(P.gegner.v - P.gegner.t, P.gegner.v), 'Gegner gestoppt', `${P.gegner.v - P.gegner.t} von ${P.gegner.v}`)}
+          </div>
+          ${schuetzen.length ? `<table class="st-tab st-pen-tab">
+            <thead><tr><th class="li">Schütz:in</th><th title="Versuche">Vers.</th><th title="Tore">T</th><th title="Trefferquote">%</th></tr></thead>
+            <tbody>${schuetzen.map(([id, x]) => `<tr><td class="li">${kLabel(id)}</td><td>${x.v}</td><td class="fett">${x.t}</td><td>${pct(x.t, x.v)}</td></tr>`).join('')}</tbody>
+          </table>` : ''}
+          ${goalies.length ? `<table class="st-tab st-pen-tab">
+            <thead><tr><th class="li">Goalie</th><th title="Penaltys gegen">Pen.</th><th title="nicht getroffen (gehalten oder verschossen)">ohne Tor</th><th title="Quote ohne Tor">%</th></tr></thead>
+            <tbody>${goalies.map(([id, x]) => `<tr><td class="li">${kLabel(id)}</td><td>${x.v}</td><td class="fett">${x.gehalten}</td><td>${pct(x.gehalten, x.v)}</td></tr>`).join('')}</tbody>
+          </table>` : ''}
+          <p class="muted klein">Penaltys zählen nicht in die Skorerliste. «ohne Tor» = gehalten oder verschossen. Goalie = wer am Spielende im Tor stand (im Match änderbar).</p>
+        </section>`;
     }
 
     // ---- Strafen ----------------------------------------------
@@ -506,6 +535,7 @@ export async function mount(root) {
       if (e.art === 'tor' || e.art === 'strafe' || e.art === 'goalie') e._p = merke(e.nr, e.name, e.art === 'goalie');
       if (e.art === 'tor') e._a = merke(e.assist_nr, e.assist_name);
     });
+    (D.penaltys || []).forEach(p => { if (p.team === 'wir') p._p = merke(p.nr, p.name); });
     leute.forEach(p => { Object.assign(p, L.zuordnen(p, S.kader.filter(istSpieler), gMap)); p.wahl = p.kader_id || ''; });
 
     // Einsatz finden: Match am gleichen Datum
@@ -583,6 +613,10 @@ export async function mount(root) {
         <ul class="st-tele">${[...D.ereignisse].sort((a, b) => a.zeit - b.zeit).map(e => `
           <li class="st-ev ${e.art}"><span class="st-zeit">${L.zeitText(e.zeit)}</span><span class="st-ev-icon">${L.ART[e.art].icon}</span>
             <span class="st-ev-text">${evText(e)}</span>${e.situation ? `<span class="st-sit ${e.situation}">${L.SITUATION[e.situation].kurz}</span>` : ''}</li>`).join('')}</ul>` : ''}
+        ${D.penaltys?.length ? `<h3 class="gruppe">🎯 Penaltyschiessen <span>${D.penaltys.filter(p => p.team === 'wir' && p.tor).length}:${D.penaltys.filter(p => p.team === 'gegner' && p.tor).length}</span></h3>
+        <ol class="st-pen-liste">${D.penaltys.map((p, i) => `<li><div class="st-pen-z ${p.team}"><span class="st-pen-nr">${i + 1}</span>
+          <span class="st-pen-wer">${p.team === 'wir' ? `${p.nr != null ? `${p.nr} ` : ''}${esc(p.name || 'unbekannt')}` : `Gegner${p.gegner_nr != null ? ` #${p.gegner_nr}` : ''}`}</span>
+          <span class="st-pen-erg ${p.tor ? 'tor' : ''}">${p.tor ? '✅ Tor' : '❌ kein Tor'}</span></div></li>`).join('')}</ol>` : ''}
         ${D.manuell ? '<p class="muted klein pad">Aufstellung und Ereignisse erfasst du nach dem Speichern im Match.</p>' : ''}
 
         <div class="st-aktionen">
@@ -670,6 +704,14 @@ export async function mount(root) {
           };
         });
         if (rows.length) await db(sb.from('match_ereignisse').insert(rows));
+        // Penaltyschiessen nur ersetzen, wenn der Import welche enthält (sonst von Hand Erfasstes behalten)
+        if (D.penaltys?.length) {
+          await db(sb.from('match_penaltys').delete().eq('einsatz_id', einsatzId));
+          await db(sb.from('match_penaltys').insert(D.penaltys.map((p, i) => ({
+            einsatz_id: einsatzId, nr: i + 1, team: p.team, tor: p.tor,
+            kader_id: p.team === 'wir' ? kid(p._p) : null, gegner_nr: p.team === 'gegner' ? p.gegner_nr : null,
+          }))));
+        }
       }
       // 4) Zuordnungen merken
       const merk = leute.filter(p => p.name && p.wahl && p.wahl !== 'neu')
@@ -706,7 +748,7 @@ export async function mount(root) {
     let E = null, V = [];
 
     async function lade() {
-      const e = await db(sb.from('einsaetze').select('*, match_aufstellung(*), match_ereignisse(*)').eq('id', id));
+      const e = await db(sb.from('einsaetze').select('*, match_aufstellung(*), match_ereignisse(*), match_penaltys(*)').eq('id', id));
       E = e[0];
       if (!E) { box.innerHTML = `<div class="hinweis"><p>Dieser Match existiert nicht (mehr).</p><a class="btn primary" href="#/statistik">Zur Übersicht</a></div>`; return false; }
       await ladeBasis(E.liste_id);
@@ -803,10 +845,19 @@ export async function mount(root) {
           ${ro ? '' : '<p class="muted klein">Tor antippen → auch eintragen, welche Version/Linie auf dem Feld war (für Plus/Minus und Wechsel im Spiel).</p>'}`
           : `<p class="muted pad leer">Noch keine Ereignisse.${ro ? '' : '<br>Tippe auf <b>＋</b> oder importiere den Text von Claude.'}</p>`}
 
+        ${penaltyBlock(ro)}
+
         ${ro || (!ev.length && !auf.length) ? '' : '<div class="st-aktionen"><button class="btn danger small st-loeschen">Statistik löschen</button></div>'}
         ${ro ? '' : '<button class="fab" aria-label="Ereignis hinzufügen">＋</button>'}`;
 
       box.querySelector('.st-edit')?.addEventListener('click', matchDialog);
+      box.querySelector('.st-pen-liste')?.addEventListener('click', e => {
+        const b = e.target.closest('.st-pen-z'); if (!b || b.disabled) return;
+        const x = E.match_penaltys.find(p => p.id === b.dataset.id); penaltyDialog(x, x.team);
+      });
+      box.querySelector('.st-pen-wir')?.addEventListener('click', () => penaltyDialog(null, 'wir'));
+      box.querySelector('.st-pen-gegner')?.addEventListener('click', () => penaltyDialog(null, 'gegner'));
+      box.querySelector('.st-pen-goalie')?.addEventListener('click', penaltyGoalieDialog);
       box.querySelector('.st-import')?.addEventListener('click', () => importDialog(E));
       box.querySelector('.st-auf-edit')?.addEventListener('click', aufstellungDialog);
       box.querySelector('.fab')?.addEventListener('click', () => ereignisDialog(null, ev));
@@ -815,11 +866,102 @@ export async function mount(root) {
         ereignisDialog(E.match_ereignisse.find(x => x.id === b.dataset.id), ev);
       });
       box.querySelector('.st-loeschen')?.addEventListener('click', async () => {
-        if (!confirm('Aufstellung und alle Ereignisse dieses Matches löschen? Der Einsatz mit den Linien bleibt.')) return;
+        if (!confirm('Aufstellung, alle Ereignisse und Penaltys dieses Matches löschen? Der Einsatz mit den Linien bleibt.')) return;
         await db(sb.from('match_ereignisse').delete().eq('einsatz_id', E.id));
         await db(sb.from('match_aufstellung').delete().eq('einsatz_id', E.id));
-        await db(sb.from('einsaetze').update({ stat_am: null }).eq('id', E.id), 'Statistik gelöscht');
+        await db(sb.from('match_penaltys').delete().eq('einsatz_id', E.id));
+        await db(sb.from('einsaetze').update({ stat_am: null, penalty_goalie_id: null }).eq('id', E.id), 'Statistik gelöscht');
         neuLaden();
+      });
+    }
+
+    // ---- Penaltyschiessen ---------------------------------------
+    // Zählt nicht in Skorerliste/Tore/Goalie-Gegentore. Block erscheint bei n.P. oder wenn schon Penaltys erfasst sind.
+    function penaltyBlock(ro) {
+      const pens = L.penaltysVon(E);
+      if (!pens.length && E.entscheid !== 'np') return '';
+      const st = L.penaltyStand(E), g = L.penaltyGoalie(E);
+      return `
+        <h3 class="gruppe">🎯 Penaltyschiessen${pens.length ? ` <span>${st.wir}:${st.gegner}</span>` : ''}</h3>
+        <section class="st-karte st-pen">
+          ${pens.length ? `<ol class="st-pen-liste">${pens.map((x, i) => `<li>
+            <button class="st-pen-z ${x.team}" data-id="${x.id}" ${ro ? 'disabled' : ''}>
+              <span class="st-pen-nr">${i + 1}</span>
+              <span class="st-pen-wer">${x.team === 'wir' ? (x.kader_id ? mLabel(x.kader_id) : '<i>unbekannt</i>') : `Gegner${x.gegner_nr != null ? ` <small>#${x.gegner_nr}</small>` : ''}`}</span>
+              <span class="st-pen-erg ${x.tor ? 'tor' : ''}">${x.tor ? '✅ Tor' : '❌ kein Tor'}</span>
+            </button></li>`).join('')}</ol>`
+            : `<p class="muted klein">Noch keine Penaltys erfasst.${ro ? '' : ' Reihenfolge wie geschossen: ＋ Wir / ＋ Gegner.'}</p>`}
+          <p class="klein">🥅 Goalie: <b>${g ? mLabel(g) : '–'}</b>${E.penalty_goalie_id ? '' : ' <small class="muted">(automatisch: am Spielende im Tor)</small>'}</p>
+          ${ro ? '' : `<div class="st-links">
+            <button class="btn ghost small st-pen-wir">＋ Wir</button>
+            <button class="btn ghost small st-pen-gegner">＋ Gegner</button>
+            <button class="btn ghost small st-pen-goalie">🥅 Goalie</button>
+          </div>`}
+          <p class="muted klein">Penaltys zählen nicht in die Skorerliste und nicht als Tore oder Gegentore.</p>
+        </section>`;
+    }
+
+    function penaltyDialog(x, team) {
+      const wir = team === 'wir';
+      const dabei = new Set(E.match_aufstellung.filter(a => !a.goalie).map(a => a.kader_id));
+      const personen = S.kader.filter(k => istSpieler(k) && !istGoalie(k) && (k.aktiv || dabei.has(k.id) || k.id === x?.kader_id))
+        .sort((a, b) => dabei.has(b.id) - dabei.has(a.id) || (mNr(a.id) ?? 99) - (mNr(b.id) ?? 99));
+      let tor = x ? x.tor : true;
+      oeffneDialog(`
+        <h2>🎯 Penalty ${wir ? 'wir' : 'Gegner'}</h2>
+        ${wir ? `<label>Schütz:in<select name="person"><option value="">– unbekannt –</option>${personen.map(k =>
+          `<option value="${k.id}" ${x?.kader_id === k.id ? 'selected' : ''}>${mNr(k.id) ?? ''} ${esc(k.name)}${dabei.has(k.id) ? '' : ' (nicht in Aufstellung)'}</option>`).join('')}</select></label>`
+          : `<label>Rückennummer Gegner<input type="number" inputmode="numeric" min="0" max="99" name="gnr" value="${x?.gegner_nr ?? ''}" placeholder="optional"></label>`}
+        <div class="seg st-pen-seg"><button type="button" data-t="1" class="${tor ? 'on' : ''}">✅ Tor</button><button type="button" data-t="0" class="${tor ? '' : 'on'}">❌ kein Tor</button></div>
+        <div class="dlg-actions">
+          ${x ? '<button class="btn danger small btn-weg">Löschen</button>' : ''}
+          <button class="btn ghost btn-zu">Abbrechen</button>
+          <button class="btn primary btn-ok">Speichern</button>
+        </div>`, d => {
+        d.querySelector('.st-pen-seg').onclick = e => {
+          const b = e.target.closest('button'); if (!b) return;
+          tor = b.dataset.t === '1';
+          d.querySelectorAll('.st-pen-seg button').forEach(y => y.classList.toggle('on', y === b));
+        };
+        d.querySelector('.btn-zu').onclick = schliesse;
+        d.querySelector('.btn-weg')?.addEventListener('click', async () => {
+          await db(sb.from('match_penaltys').delete().eq('id', x.id), 'Penalty gelöscht');
+          schliesse(); neuLaden();
+        });
+        d.querySelector('.btn-ok').onclick = async () => {
+          const daten = wir
+            ? { kader_id: d.querySelector('[name=person]').value || null, gegner_nr: null }
+            : { gegner_nr: (v => v === '' ? null : Math.min(99, Math.max(0, parseInt(v, 10) || 0)))(d.querySelector('[name=gnr]').value.trim()), kader_id: null };
+          if (x) await db(sb.from('match_penaltys').update({ ...daten, tor }).eq('id', x.id), 'Gespeichert');
+          else {
+            const nr = Math.max(0, ...E.match_penaltys.map(p => p.nr)) + 1;
+            await db(sb.from('match_penaltys').insert({ ...daten, tor, team, nr, einsatz_id: E.id }), 'Penalty erfasst');
+          }
+          schliesse(); neuLaden();
+        };
+      });
+    }
+
+    function penaltyGoalieDialog() {
+      const auto = L.goalieAmEnde(E);
+      const drin = new Set(E.match_aufstellung.filter(a => a.goalie).map(a => a.kader_id));
+      const goalies = S.kader.filter(k => istSpieler(k) && (istGoalie(k) || drin.has(k.id)) && (k.aktiv || drin.has(k.id)));
+      oeffneDialog(`
+        <h2>🥅 Goalie im Penaltyschiessen</h2>
+        <label>Goalie<select name="g">
+          <option value="">Automatisch${auto ? ` (${esc(kName(auto))})` : ''}</option>
+          ${goalies.map(k => `<option value="${k.id}" ${E.penalty_goalie_id === k.id ? 'selected' : ''}>${esc(k.name)}</option>`).join('')}
+        </select></label>
+        <p class="muted klein">Automatisch = wer am Spielende im Tor stand.</p>
+        <div class="dlg-actions">
+          <button class="btn ghost btn-zu">Abbrechen</button>
+          <button class="btn primary btn-ok">Speichern</button>
+        </div>`, d => {
+        d.querySelector('.btn-zu').onclick = schliesse;
+        d.querySelector('.btn-ok').onclick = async () => {
+          await db(sb.from('einsaetze').update({ penalty_goalie_id: d.querySelector('[name=g]').value || null }).eq('id', E.id), 'Gespeichert');
+          schliesse(); neuLaden();
+        };
       });
     }
 
