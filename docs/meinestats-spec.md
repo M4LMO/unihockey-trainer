@@ -31,4 +31,7 @@ Marcs persönliche Statistik (bisher OneNote): eigene Spiele **als Trainer**, **
 `meinestats.js` (Oberfläche), `meinestats.css`, `meinestats-logik.js` (Rechnen, Suche; ohne Oberfläche).
 
 ## Startdaten
+SQL 12: «2025 ZPGD – B14 White» getrennt in **La Saga** (Tenero, Kategorie «La Saga») und **Prague Games** (je eigener Block mit Spielen + Rangtabelle). Grundsatz: jedes Turnier = eigener Block, nicht als «Teil» im selben Block.
+
+## Startdaten (Import)
 Einmaliger Import aus dem OneNote-PDF (13 Saisons/Teams, 187 Spiele, 65 Tabellenzeilen) – bewusst **nicht im Repo** (öffentlich, enthält Staff-Namen); SQL wurde Marc direkt gegeben.
