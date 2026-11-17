@@ -58,6 +58,12 @@ Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude lie
 - Tab Matches zeigt immer alle Matches; die nicht gewählten sind grau mit «zählt hier nicht (…)» (bleiben bearbeitbar).
 - Wahl wird pro Gerät gemerkt (`localStorage` `wbFilter`, kommagetrennt) und gilt auch im Tool Analyse. Code: `WB_FILTER`, `wettbewerbVon`, `imWettbewerb`, `wbKlick`, `wbText`, `wbUmschalter` in `statistik-logik.js`.
 
+## Penaltyschiessen (SQL 15, 17.11.2026, mit Marc abgestimmt)
+- Eigene Tabelle `match_penaltys` (Reihenfolge `nr`, team wir/gegner, wir mit Person, Gegner nur Nummer, `tor` ja/nein). Zählt **nie** in Skorerliste, Tore, Goalie-Gegentore oder Analyse.
+- **Match:** Block «🎯 Penaltyschiessen» unter dem Telegramm (bei n.P. oder wenn Penaltys erfasst sind): Runde für Runde ✅/❌, Stand, ＋ Wir / ＋ Gegner, antippen = bearbeiten/löschen, 🥅 Goalie (Standard automatisch = wer am Spielende im Tor stand, `goalieAmEnde`; von Hand `einsaetze.penalty_goalie_id`).
+- **Tab Team:** Karte «🎯 Penaltyschiessen»: gewonnen:verloren, Trefferquote wir, Gegner gestoppt, Tabelle Schütz:innen (Versuche, Tore, %), Goalies (Penaltys gegen, ohne Tor = gehalten oder verschossen, %). Code: `penaltyStatistik` in `statistik-logik.js`.
+- Import: optional `"penaltys": [{"team": "wir", "nr": 8, "name": "…", "tor": true}, {"team": "gegner", "gegner_nr": 14, "tor": false}]` in Schussreihenfolge; ersetzt die Penaltys nur, wenn der Import welche enthält.
+
 ## Register «Strafen» (13.11.2026, mit Marc abgestimmt)
 - Nur **eigene** Strafen (keine Gegner-Strafen). Kein SQL nötig – rechnet aus `match_ereignisse` (`strafenStatistik` in `statistik-logik.js`).
 - **Übersicht:** Anzahl Strafen, Strafminuten (je Ø pro Match), Quote «Strafe → Gegentor», Strafarten (2', 2+2, 10' …). Gezählt werden nur Matches mit Statistik.

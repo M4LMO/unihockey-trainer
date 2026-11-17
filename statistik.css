@@ -217,3 +217,20 @@ li.st-ev { cursor: default; }
 
 /* n.V. / n.P. hinter grossem Resultat */
 .st-gross-res small { font-size: .45em; margin-left: 4px; font-weight: 700; vertical-align: middle; }
+
+/* Penaltyschiessen */
+.st-pen-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.st-pen-z {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit;
+  background: var(--bg); border: 0; border-left: 4px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer; color: inherit;
+}
+.st-pen-z:disabled { cursor: default; }
+.st-pen-z.wir { border-left-color: var(--team); }
+.st-pen-z.gegner { border-left-color: #2563eb; }
+.st-pen-nr { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-size: .75rem; font-weight: 700; color: var(--muted); }
+.st-pen-wer { flex: 1; min-width: 0; }
+.st-pen-erg { flex: none; font-size: .85rem; font-weight: 700; color: var(--muted); }
+.st-pen-erg.tor { color: var(--ok); }
+.st-pen-seg { display: flex; }
+.st-pen-seg button { flex: 1; }
+.st-pen-tab { margin-top: 4px; }

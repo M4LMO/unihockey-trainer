@@ -296,6 +296,13 @@ export function parseImport(text) {
       situation: SITUATION[e.situation] ? e.situation : null,
     };
   });
+  // Penaltyschiessen (optional): [{team: 'wir'|'gegner', nr, name, gegner_nr, tor: true|false}] in Reihenfolge
+  const penaltys = (Array.isArray(d.penaltys) ? d.penaltys : []).map((p, i) => {
+    if (p.team !== 'wir' && p.team !== 'gegner') fehler.push(`Penalty ${i + 1}: team muss «wir» oder «gegner» sein`);
+    return p.team === 'wir'
+      ? { team: 'wir', nr: nr(p.nr), name: p.name ? String(p.name).trim() : null, tor: !!p.tor }
+      : { team: 'gegner', gegner_nr: nr(p.gegner_nr ?? p.nr), tor: !!p.tor };
+  });
   if (fehler.length) throw new Error(fehler.slice(0, 3).join(' · '));
 
   const tore = Array.isArray(d.tore) ? d.tore.map(x => x == null ? null : +x) : [null, null];
@@ -305,7 +312,7 @@ export function parseImport(text) {
   const entscheid = ENTSCHEID[d.entscheid] ? d.entscheid
     : ereignisse.some(e => (e.art === 'tor' || e.art === 'gegentor') && e.zeit > regulaer) ? 'nv' : null;
   return {
-    entscheid,
+    entscheid, penaltys,
     datum: d.datum,
     ort: d.ort === 'heim' || d.ort === 'auswaerts' ? d.ort : null,
     gegner: d.gegner ? String(d.gegner).trim() : null,
@@ -413,6 +420,44 @@ export function strafenStatistik(matches) {
       }
     }
     R.proMatch.push(pm);
+  }
+  return R;
+}
+
+// ---- Penaltyschiessen ------------------------------------------
+// Zählt NICHT in Skorerliste, Tore oder Goalie-Gegentore – nur hier.
+// Goalie im Penaltyschiessen: von Hand gesetzt, sonst wer am Spielende im Tor stand.
+export function goalieAmEnde(m) {
+  const auf = m.match_aufstellung || [];
+  let drin = (auf.find(a => a.goalie && a.start) || auf.find(a => a.goalie))?.kader_id ?? null;
+  for (const e of [...(m.match_ereignisse || [])].filter(e => e.art === 'goalie').sort((a, b) => a.zeit - b.zeit))
+    if (e.kader_id) drin = e.kader_id;   // «Tor leer» am Schluss zählt nicht – im Penaltyschiessen steht wieder jemand drin
+  return drin;
+}
+export const penaltyGoalie = m => m.penalty_goalie_id || goalieAmEnde(m);
+export const penaltysVon = m => [...(m.match_penaltys || [])].sort((a, b) => a.nr - b.nr);
+export function penaltyStand(m) {
+  const p = penaltysVon(m);
+  return { wir: p.filter(x => x.team === 'wir' && x.tor).length, gegner: p.filter(x => x.team === 'gegner' && x.tor).length };
+}
+// Saison: { matches, gewonnen, verloren, schuetzen: Map(kader_id → {v, t}), goalies: Map(kader_id → {v, gehalten}), wir: {v, t}, gegner: {v, t} }
+export function penaltyStatistik(matches) {
+  const R = { matches: 0, gewonnen: 0, verloren: 0, schuetzen: new Map(), goalies: new Map(), wir: { v: 0, t: 0 }, gegner: { v: 0, t: 0 } };
+  for (const m of matches) {
+    const p = penaltysVon(m);
+    if (!p.length) continue;
+    R.matches++;
+    if (m.tore_fuer != null && m.tore_gegen != null && m.tore_fuer !== m.tore_gegen) m.tore_fuer > m.tore_gegen ? R.gewonnen++ : R.verloren++;
+    const g = penaltyGoalie(m);
+    for (const x of p) {
+      if (x.team === 'wir') {
+        R.wir.v++; if (x.tor) R.wir.t++;
+        if (x.kader_id) { const s = R.schuetzen.get(x.kader_id) || { v: 0, t: 0 }; s.v++; if (x.tor) s.t++; R.schuetzen.set(x.kader_id, s); }
+      } else {
+        R.gegner.v++; if (x.tor) R.gegner.t++;
+        if (g) { const s = R.goalies.get(g) || { v: 0, gehalten: 0 }; s.v++; if (!x.tor) s.gehalten++; R.goalies.set(g, s); }
+      }
+    }
   }
   return R;
 }

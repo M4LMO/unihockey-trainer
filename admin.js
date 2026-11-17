@@ -13,7 +13,7 @@ const USERS_LINK = `https://supabase.com/dashboard/project/${PROJEKT}/auth/users
 // Alle Tabellen für die Sicherung (Reihenfolge = Abhängigkeiten)
 const TABELLEN = [
   'teams', 'saisons', 'kaderlisten', 'kader', 'einsaetze', 'varianten', 'linien',
-  'linien_spieler', 'chemie', 'match_aufstellung', 'match_ereignisse', 'su_zuordnung', 'zugang',
+  'linien_spieler', 'chemie', 'match_aufstellung', 'match_ereignisse', 'match_penaltys', 'su_zuordnung', 'zugang',
   'ms_vereine', 'ms_hallen', 'ms_abschnitte', 'ms_spiele', 'ms_tabellen', 'ms_werdegang',   // Meine Stats
 ];
 
