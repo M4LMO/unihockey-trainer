@@ -34,7 +34,7 @@ Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude lie
   "format": "unihockey-statistik-1",
   "datum": "2026-09-27", "ort": "heim", "gegner": "UHC Beispiel",
   "wettbewerb": "meisterschaft", "liga": "U21 B …",
-  "tore": [1, 3], "abschnitte": 2, "abschnitt_min": 20,
+  "tore": [1, 3], "entscheid": "nv", "abschnitte": 2, "abschnitt_min": 20,
   "aufstellung": [ {"nr": 20, "name": "…", "goalie": true, "start": true}, {"nr": 8, "name": "…"} ],
   "ereignisse": [
     {"zeit": "14:05", "art": "tor", "nr": 10, "name": "…", "assist_nr": 7, "assist_name": "…"},
@@ -45,7 +45,9 @@ Match-Statistik aus der Swiss-Unihockey-App erfassen (Screenshots → Claude lie
   ]
 }
 ```
-- Sicht immer aus eigener Sicht (`tore` = [wir, Gegner], `tor` = eigenes Tor). Zeit durchlaufend mm:ss. Optional `"situation"` pro Tor.
+- Sicht immer aus eigener Sicht (`tore` = [wir, Gegner], `tor` = eigenes Tor). Zeit durchlaufend mm:ss (Verlängerung ab 60:00 weiterzählen). Optional `"situation"` pro Tor.
+- `entscheid` (optional): `"nv"` = n.V., `"np"` = n.P. (Endresultat inkl. Penalty-Siegtor, das nicht im Telegramm steht). Fehlt es und fällt ein Tor nach der regulären Spielzeit → automatisch n.V.
+- **Entscheid n.V./n.P.** (SQL 14, 17.11.): im Dialog «Match bearbeiten» wählbar (nur mit Sieger), Anzeige «6:7 n.V.» in Matchliste, Match, Linien (resultat-Text) und Analyse; Team-Bilanz zeigt «davon x n.V./n.P.». Zählt als Sieg/Niederlage.
 - Swiss-Unihockey-App: Match facts zeigt Tore (Zeit, Schütz:in, Assist) und Spielabschnitte; Lineup zeigt Linien + Kaderliste (Nr, Name, Position).
 
 ## Ansichten

@@ -136,3 +136,6 @@
 .an-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .an-liste a { display: flex; gap: 6px; align-items: baseline; color: inherit; text-decoration: none; font-size: .88rem; padding: 4px 0; }
 .an-liste a span { margin-left: auto; color: var(--muted); font-size: .8rem; white-space: nowrap; }
+
+/* n.V. / n.P. hinter Resultat */
+.an-res small { font-size: .5em; margin-left: 3px; vertical-align: middle; }
