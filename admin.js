@@ -14,7 +14,7 @@ const USERS_LINK = `https://supabase.com/dashboard/project/${PROJEKT}/auth/users
 const TABELLEN = [
   'teams', 'saisons', 'kaderlisten', 'kader', 'einsaetze', 'varianten', 'linien',
   'linien_spieler', 'chemie', 'match_aufstellung', 'match_ereignisse', 'su_zuordnung', 'zugang',
-  'ms_vereine', 'ms_hallen', 'ms_abschnitte', 'ms_spiele', 'ms_tabellen',   // Meine Stats
+  'ms_vereine', 'ms_hallen', 'ms_abschnitte', 'ms_spiele', 'ms_tabellen', 'ms_werdegang',   // Meine Stats
 ];
 
 const datum = iso => iso ? new Date(iso).toLocaleDateString('de-CH') : '';
