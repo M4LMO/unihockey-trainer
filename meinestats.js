@@ -206,7 +206,6 @@ export async function mount(root) {
           ${kpi(blatt.length, 'auf dem Matchblatt', `${imTor.length} im Tor · ${blatt.length - imTor.length} Ersatz`)}
           ${kpi(sun(bS), 'Bilanz im Tor', bS.snv || bS.nnv ? `davon ${bS.snv} S / ${bS.nnv} N n.V./n.P.` : '')}
           ${kpi(bS.gt, 'Gegentore', `Ø ${M.zahl1(bS.schnittGT)} pro Spiel im Tor`)}
-          ${kpi(bS.zuNull, 'Zu-Null-Spiele')}
           ${ersteS ? kpi(M.datumLang(ersteS.datum), 'Erstes Spiel', `${esc(vName(AM.get(ersteS.abschnitt_id)?.verein_id))} – ${esc(vName(ersteS.gegner_id))} ${esc(M.resultatText(ersteS))}`) : ''}
         </div>
       </section>
