@@ -11,7 +11,7 @@ Marcs persönliche Statistik (bisher OneNote): eigene Spiele **als Trainer**, **
 ## Datenmodell (SQL 09)
 - `ms_vereine` (name unique, land) – jeder Verein nur einmal, **ein Name** (Spiele/Tabellen zeigen auf die id → Umbenennen wirkt überall). Suche ohne Akzente/Gross-klein. Spalte `aliase` seit SQL 11 leer und unbenutzt (Wunsch Marc 17.11.).
 - `ms_hallen` (ort, name; unique) – «Ort, Halle».
-- `ms_abschnitte` = eine Saison/ein Turnierjahr mit einem Team: bereich (trainer|spieler|fan), saison (frei: «2023/24» oder «2025»), kategorie (Meisterschaft, Prague Games …), verein_id, team, gruppe, staff (Text), notiz, geloescht_am (Papierkorb).
+- `ms_abschnitte` = eine Saison/ein Turnierjahr (Sortierung: Turnierjahr 2026 = Saison 2026/27) mit einem Team: bereich (trainer|spieler|fan), saison (frei: «2023/24» oder «2025»), kategorie (Meisterschaft, Prague Games …), verein_id, team, gruppe, staff (Text), notiz, geloescht_am (Papierkorb).
 - `ms_spiele`: teil (Unterabschnitt, z.B. «La Saga Tenero»), datum, zeit, halle_id, livestream, eigene Spiele: gegner_id + gegner_zusatz (z.B. «U17»), Fan: heim_id/gast_id + liga; tore1/tore2 (= wir/Gegner bzw. Heim/Gast), entscheid (nv|np), spielart (meisterschaft, cup, test, turnier, ko, playoff, abstieg, laenderspiel), ich (Trainer: dabei|nicht; Spieler: tor|ersatz|nicht), abgesagt, notiz.
 - `ms_tabellen`: Rangtabellen-Zeilen pro Abschnitt (titel trennt mehrere Tabellen), rang, verein_id, team (Zusatz), eigenes, sp, s, u, snv, nnv, n, tore, gegentore, punkte (leere Spalten werden nicht angezeigt).
 - In der 💾 Sicherung enthalten. Realtime aktiv.
@@ -19,7 +19,7 @@ Marcs persönliche Statistik (bisher OneNote): eigene Spiele **als Trainer**, **
 ## Ansichten
 - **Übersicht:** Spiele erlebt total; Trainer (Spiele dabei, S/U/N, Siegquote, Tore), Goalie (Matchblatt, im Tor, Ersatz, Bilanz im Tor, Gegentore + Ø, Zu-Null, erstes Spiel), Fan (Spiele, Halle/Livestream, meistgesehenes Team, Tore); zuletzt gespielte Spiele.
 - **Spiele:** Trainer/Spieler/Fan, aufklappbare Blöcke pro Saison/Team (Gruppe, Staff, Knöpfe, Notiz, Spiele **neueste oben**, ohne Datum unten, Rangtabellen). Admin-Knöpfe oben im Block: ＋ Spiel, ＋ Rangtabelle, ✏️ Saison/Team (🗑 → Papierkorb), runder ＋ = neue Saison/Team.
-- **Auswertung:** Filter Bereich, Saison, «Zählen» (nur meine Spiele = Trainer dabei / im Tor · inkl. Ersatz · alle Teamspiele), Spielarten. Bilanz pro Saison/Team (mit Schlussrang), Gegner-Bilanz (Suche, Sortierung, aufklappbar mit Spielen, neueste oben), Fan: Ligen + meistgesehene Teams, Hallen & Orte.
+- **Auswertung:** Filter Bereich, **Saison** (Turnierjahr zählt zur Saison, die im Sommer beginnt: Prague Games 2026 → 2026/27; `saisonName()`), **Kategorie** (Meisterschaft, Prague Games …), **Team** (ein Team oder «Verein (alle Teams)»), «Zählen» (nur meine Spiele = Trainer dabei / im Tor · inkl. Ersatz · alle Teamspiele), Spielarten. Bilanz pro Saison/Team (mit Schlussrang), Gegner-Bilanz (Suche, Sortierung, aufklappbar mit Spielen, neueste oben), Fan: Ligen + meistgesehene Teams, Hallen & Orte.
 - **Verwaltung:** Vereine & Hallen bearbeiten, **zusammenführen** (alles geht an den Ziel-Eintrag, alter Eintrag wird gelöscht), Papierkorb (wiederherstellen / endgültig mit Eintippen).
 - Resultatfarben: Sieg grün, Niederlage rot, Unentschieden orange; n.V./n.P. zählen als Sieg/Niederlage (separat ausgewiesen).
 

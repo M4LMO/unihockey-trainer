@@ -63,6 +63,8 @@ export async function mount(root) {
     modus: M.MODI[E.modus] ? E.modus : 'meine',
     arten: Array.isArray(E.arten) ? E.arten : Object.keys(M.SPIELARTEN),
     saison: '',
+    team: '',        // '' | 'v:<vereinId>' (alle Teams des Vereins) | 't:<vereinId>|<team>'
+    kategorie: '',
     suche: '',
     sort: 'anzahl',
   };
@@ -347,9 +349,21 @@ export async function mount(root) {
   function tabAuswertung(ziel) {
     const bListe = F.bereich === 'alle' ? ['trainer', 'spieler', 'fan'] : [F.bereich];
     const abschnitte = aktivA().filter(a => bListe.includes(a.bereich));
-    const saisons = [...new Set(abschnitte.map(a => a.saison))].sort((x, y) => M.saisonSchluessel(y) - M.saisonSchluessel(x));
+    // Auswahl-Listen: Saison (Turnierjahr → Saison), Team/Verein, Kategorie
+    const saisons = [...new Set(abschnitte.map(a => M.saisonName(a.saison)))].sort((x, y) => M.saisonSchluessel(y) - M.saisonSchluessel(x));
+    const mitTeam = abschnitte.filter(a => a.bereich !== 'fan' && a.verein_id);
+    const vereinOpt = [...new Set(mitTeam.map(a => a.verein_id))].map(id => ({ v: `v:${id}`, t: `${vName(id)} (alle Teams)` }))
+      .sort((x, y) => x.t.localeCompare(y.t, 'de'));
+    const teamOpt = [...new Map(mitTeam.map(a => [`t:${a.verein_id}|${a.team || ''}`, `${vName(a.verein_id)}${a.team ? ` – ${a.team}` : ''}`])).entries()]
+      .map(([v, t]) => ({ v, t })).sort((x, y) => x.t.localeCompare(y.t, 'de'));
+    const kategorien = [...new Set(abschnitte.filter(a => a.bereich !== 'fan').map(a => a.kategorie || 'Ohne Kategorie'))].sort((x, y) => x.localeCompare(y, 'de'));
     if (F.saison && !saisons.includes(F.saison)) F.saison = '';
-    const aIds = new Set(abschnitte.filter(a => !F.saison || a.saison === F.saison).map(a => a.id));
+    if (F.team && ![...vereinOpt, ...teamOpt].some(o => o.v === F.team)) F.team = '';
+    if (F.kategorie && !kategorien.includes(F.kategorie)) F.kategorie = '';
+    const passtTeam = a => !F.team || (F.team.startsWith('v:') ? a.verein_id === F.team.slice(2) : `t:${a.verein_id}|${a.team || ''}` === F.team);
+    const aIds = new Set(abschnitte.filter(a => (!F.saison || M.saisonName(a.saison) === F.saison) && passtTeam(a)
+      && (!F.kategorie || (a.bereich !== 'fan' && (a.kategorie || 'Ohne Kategorie') === F.kategorie))).map(a => a.id));
+    const opt = (wert, aktuell, text) => `<option value="${esc(wert)}" ${wert === aktuell ? 'selected' : ''}>${esc(text)}</option>`;
     const spiele = D.SP.filter(s => aIds.has(s.abschnitt_id) && F.arten.includes(s.spielart) && M.zaehlt(s, bereichVon(s), F.modus));
     const eigene = spiele.filter(s => bereichVon(s) !== 'fan');
     const fan = spiele.filter(s => bereichVon(s) === 'fan');
@@ -360,8 +374,17 @@ export async function mount(root) {
       <div class="seg ms-bereich ms-f-bereich">${[['alle', 'Alle'], ...Object.entries(M.BEREICHE).map(([k, b]) => [k, `${b.icon} ${b.name}`])].map(([k, t]) => `<button data-b="${k}" class="${F.bereich === k ? 'on' : ''}">${t}</button>`).join('')}</div>
       <div class="ms-filter">
         <label class="sel-wrap">Saison
-          <select class="f-saison"><option value="">Alle</option>${saisons.map(s => `<option ${s === F.saison ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+          <select class="f-saison"><option value="">Alle</option>${saisons.map(s => opt(s, F.saison, s)).join('')}</select>
         </label>
+        ${mitEigenen ? `<label class="sel-wrap">Kategorie
+          <select class="f-kat"><option value="">Alle</option>${kategorien.map(k => opt(k, F.kategorie, k)).join('')}</select>
+        </label>
+        <label class="sel-wrap ms-modus">Team
+          <select class="f-team"><option value="">Alle Teams</option>
+            ${vereinOpt.length > 1 || teamOpt.length > vereinOpt.length ? `<optgroup label="Verein">${vereinOpt.map(o => opt(o.v, F.team, o.t)).join('')}</optgroup>` : ''}
+            <optgroup label="Team">${teamOpt.map(o => opt(o.v, F.team, o.t)).join('')}</optgroup>
+          </select>
+        </label>` : ''}
         ${mitEigenen ? `<label class="sel-wrap ms-modus">Zählen
           <select class="f-modus">${Object.entries(M.MODI).map(([k, t]) => `<option value="${k}" ${F.modus === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
         </label>` : ''}
@@ -371,6 +394,8 @@ export async function mount(root) {
 
     ziel.querySelector('.ms-f-bereich').onclick = e => { const b = e.target.closest('button'); if (!b) return; F.bereich = b.dataset.b; setEinst({ aBereich: F.bereich }); tabAuswertung(ziel); };
     ziel.querySelector('.f-saison').onchange = e => { F.saison = e.target.value; tabAuswertung(ziel); };
+    ziel.querySelector('.f-kat')?.addEventListener('change', e => { F.kategorie = e.target.value; tabAuswertung(ziel); });
+    ziel.querySelector('.f-team')?.addEventListener('change', e => { F.team = e.target.value; tabAuswertung(ziel); });
     ziel.querySelector('.f-modus')?.addEventListener('change', e => { F.modus = e.target.value; setEinst({ modus: F.modus }); tabAuswertung(ziel); });
     ziel.querySelector('.ms-arten').onclick = e => {
       const b = e.target.closest('[data-art]'); if (!b) return;
@@ -397,7 +422,7 @@ export async function mount(root) {
           <div class="ms-scroll"><table class="ms-tab">
             <thead><tr><th class="l">Saison / Team</th><th>Sp</th><th>S</th><th>U</th><th>N</th><th>Tore</th><th>Ø GT</th><th>Rang</th></tr></thead>
             <tbody>${zeilen.map(({ a, b, r }) => `<tr>
-              <td class="l">${M.BEREICHE[a.bereich].icon} <b>${esc(a.saison)}</b> ${esc(abschnittTitel(a))}${a.kategorie && a.kategorie !== 'Meisterschaft' ? ` <small>${esc(a.kategorie)}</small>` : ''}</td>
+              <td class="l">${M.BEREICHE[a.bereich].icon} <b>${esc(M.saisonName(a.saison))}</b> ${esc(abschnittTitel(a))}${a.kategorie && a.kategorie !== 'Meisterschaft' ? ` <small>${esc(a.kategorie)}</small>` : ''}</td>
               <td>${b.sp}</td><td>${b.s}${b.snv ? `<small>(${b.snv})</small>` : ''}</td><td>${b.u}</td><td>${b.n}${b.nnv ? `<small>(${b.nnv})</small>` : ''}</td>
               <td>${b.t}:${b.gt}</td><td>${b.sp ? M.zahl1(b.schnittGT) : ''}</td><td>${r.map(x => `${x.rang}/${x.von}`).join(' ')}</td>
             </tr>`).join('')}</tbody>

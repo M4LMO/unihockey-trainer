@@ -100,7 +100,8 @@ export function resultatText(sp) {
   return `${sp.tore1}:${sp.tore2}${sp.entscheid === 'nv' ? ' n.V.' : sp.entscheid === 'np' ? ' n.P.' : ''}`;
 }
 
-// Saison/Jahr sortierbar machen: "2023/24" → 2023, "2025" → 2025 (Turnierjahr zählt wie Saison 2024/25 → 2024.5)
+// Saison/Jahr sortierbar machen: "2023/24" → 2023, "23/24" → 2023.
+// Turnierjahr (z.B. Prague Games "2026", im Sommer) zählt zur Saison, die dann beginnt → 2026 (= 2026/27)
 export function saisonSchluessel(s) {
   const t = String(s || '');
   let m = /^(\d{4})\s*\/\s*\d{2,4}/.exec(t);
@@ -108,7 +109,12 @@ export function saisonSchluessel(s) {
   m = /^(\d{2})\s*\/\s*\d{2}$/.exec(t);
   if (m) return 2000 + +m[1];
   m = /(\d{4})/.exec(t);
-  return m ? +m[1] - 0.5 : 0;
+  return m ? +m[1] : 0;
+}
+// Einheitlicher Saison-Name für Filter: "2026" → "2026/27", "23/24" → "2023/24"
+export function saisonName(s) {
+  const k = saisonSchluessel(s);
+  return k ? `${k}/${String((k + 1) % 100).padStart(2, '0')}` : String(s || '');
 }
 // Abschnitte: neueste zuerst
 export function sortiereAbschnitte(liste) {
