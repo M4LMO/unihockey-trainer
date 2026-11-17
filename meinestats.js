@@ -162,7 +162,8 @@ export async function mount(root) {
   function tabUebersicht(ziel) {
     const alle = aktiveSpiele();
     const von = b => alle.filter(s => bereichVon(s) === b);
-    const tr = von('trainer'), spl = von('spieler'), fan = von('fan').filter(s => !s.abgesagt);
+    // Spieler: Testspiele zählen in der Übersicht nicht (Hinweis in der Karte)
+    const tr = von('trainer'), spl = von('spieler').filter(s => s.spielart !== 'test'), fan = von('fan').filter(s => !s.abgesagt);
     const trDabei = tr.filter(s => M.zaehlt(s, 'trainer', 'meine'));
     const bT = M.bilanz(trDabei);
     const imTor = spl.filter(s => M.zaehlt(s, 'spieler', 'meine'));
@@ -187,7 +188,7 @@ export async function mount(root) {
 
     ziel.innerHTML = `
       <section class="ms-karte ms-total">
-        <div class="ms-gross"><b>${gespielt}</b><span>Spiele als Trainer oder Spieler</span></div>
+        <div class="ms-gross"><b>${gespielt}</b><span>Spiele als Trainer oder Spieler (Aktiv-Bereich)</span></div>
         <p class="muted klein">${trDabei.length} als Trainer dabei · ${blatt.length} als Goalie auf dem Matchblatt · in ${hallen} Hallen</p>
         ${fan.length ? `<p class="muted klein">dazu ${plural(fan.length, 'Spiel', 'Spiele')} als Fan geschaut</p>` : ''}
       </section>
@@ -204,7 +205,7 @@ export async function mount(root) {
 
       <section class="ms-karte">
         <h3 class="gruppe">🥅 Als Spieler (Goalie) <span>${plural(vereineS, 'Verein', 'Vereine')}</span></h3>
-        <p class="muted klein">im Aktiv-Bereich, nicht Junioren</p>
+        <p class="muted klein">im Aktiv-Bereich, nicht Junioren · Testspiele nicht eingerechnet</p>
         <div class="ms-kpis">
           ${kpi(blatt.length, 'auf dem Matchblatt', `${imTor.length} im Tor · ${blatt.length - imTor.length} Ersatz`)}
           ${kpi(sun(bS), 'Bilanz im Tor', bS.snv || bS.nnv ? `davon ${bS.snv} S / ${bS.nnv} N n.V./n.P.` : '')}
