@@ -740,12 +740,15 @@ export async function mount(root) {
       const tore = ev.filter(e => e.art === 'tor' || e.art === 'gegentor');
       const mitLinie = tore.filter(e => e.linie_id).length;
 
-      // Ereignisse nach Abschnitt gruppieren
-      let absch = null;
+      // Ereignisse nach Abschnitt gruppieren – alle Drittel/Halbzeiten als Überschrift,
+      // auch wenn darin nichts passiert ist (Verlängerung nur, wenn es dort Ereignisse gibt)
+      const nAbs = L.abschnittZahl(E);
+      const kopfHtml = a => `<li class="st-abs-kopf">${L.abschnittName(a, E)}</li>`;
+      let absch = 0;   // zuletzt ausgegebener Abschnitt (0 = noch keiner, nAbs + 1 = Verlängerung)
+      const koepfeBis = bis => { let h = ''; while (absch < bis) { absch++; h += kopfHtml(absch > nAbs ? 'V' : absch); } return h; };
       const zeilen = ev.map(e => {
         const a = L.abschnittVon(e.zeit, E);
-        const kopf = a !== absch ? `<li class="st-abs-kopf">${L.abschnittName(a, E)}</li>` : '';
-        absch = a;
+        const kopf = koepfeBis(a === 'V' ? nAbs + 1 : a);
         const s = R.sit.get(e.id);
         let text;
         if (e.art === 'tor') text = `${e.kader_id ? mLabel(e.kader_id) : '<i>unbekannt</i>'}${e.assist_id ? ` <small>· Assist ${mLabel(e.assist_id)}</small>` : ''}`;
@@ -764,7 +767,7 @@ export async function mount(root) {
           <span class="st-ev-text">${text}${feld}</span>
           ${istTor && s && s !== 'eq' ? `<span class="st-sit ${s}" title="${L.SITUATION[s].text}${e.situation ? ' (von Hand)' : ''}">${L.SITUATION[s].kurz}</span>` : ''}
         </button></li>`;
-      }).join('');
+      }).join('') + (ev.length ? koepfeBis(nAbs) : '');
 
       box.innerHTML = `
         <div class="ln-kopf st-kopf">
