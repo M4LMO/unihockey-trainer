@@ -172,6 +172,9 @@ export async function mount(root) {
     const live = fan.filter(s => s.livestream).length;
     const fanTeams = M.zaehle(fan.flatMap(s => [s.heim_id, s.gast_id]), x => x)[0];
     const ligen = new Set(fan.map(s => s.liga).filter(Boolean)).size;
+    // Fan-Spiele werden erst seit dieser Saison erfasst (früheste Fan-Saison, kurz: «26/27»)
+    const fanErste = aB('fan').map(a => M.saisonSchluessel(a.saison)).filter(Boolean).sort((x, y) => x - y)[0];
+    const fanAb = fanErste ? `${String(fanErste % 100).padStart(2, '0')}/${String((fanErste + 1) % 100).padStart(2, '0')}` : '';
     const hallen = new Set([...trDabei, ...blatt, ...fan].map(s => s.halle_id).filter(Boolean)).size;
     const erlebt = trDabei.length + blatt.length + fan.length;
     const zuletzt = M.sortiereSpiele([...trDabei, ...blatt, ...fan].filter(s => s.datum && s.datum <= heute())).reverse().slice(0, 6);
@@ -207,6 +210,7 @@ export async function mount(root) {
 
       <section class="ms-karte">
         <h3 class="gruppe">👀 Als Fan <span>${plural(ligen, 'Liga', 'Ligen')}</span></h3>
+        ${fanAb ? `<p class="muted klein">ab Saison ${esc(fanAb)}</p>` : ''}
         <div class="ms-kpis">
           ${kpi(fan.length, 'Spiele geschaut', `${fan.length - live} in der Halle · ${live} 📺 Livestream`)}
           ${fanTeams ? kpi(fanTeams.n, 'am meisten gesehen', esc(vName(fanTeams.key))) : ''}
