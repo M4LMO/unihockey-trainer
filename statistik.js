@@ -34,7 +34,9 @@ const istSpieler = k => k.rolle === 'spieler';
 const nachArt = (a, b) => ART_REIHE.indexOf(a.art) - ART_REIHE.indexOf(b.art) || a.nr - b.nr;
 const ergebnis = e => e.tore_fuer == null || e.tore_gegen == null ? null
   : e.tore_fuer > e.tore_gegen ? 's' : e.tore_fuer < e.tore_gegen ? 'n' : 'u';
-const resText = e => e.tore_fuer != null && e.tore_gegen != null ? `${e.tore_fuer}:${e.tore_gegen}` : (e.resultat || '');
+const resText = e => e.tore_fuer != null && e.tore_gegen != null ? L.resultatText(e.tore_fuer, e.tore_gegen, e.entscheid) : (e.resultat || '');
+// Grosses Resultat: n.V./n.P. kleiner dahinter
+const resGross = (tf, tg, ent) => `${tf}:${tg}${tf !== tg && L.ENTSCHEID[ent] ? `<small>${L.ENTSCHEID[ent]}</small>` : ''}`;
 const plural = (n, ein, mehr) => `${n} ${n === 1 ? ein : mehr}`;
 const pct = (a, b) => b ? Math.round(100 * a / b) : null;
 
@@ -273,6 +275,7 @@ export async function mount(root) {
     function tabTeam(ziel, matches) {
       const mitRes = matches.filter(m => ergebnis(m));
       const z = { s: 0, u: 0, n: 0 }; mitRes.forEach(m => z[ergebnis(m)]++);
+      const zV = { s: 0, n: 0 }; mitRes.forEach(m => { const r = ergebnis(m); if (L.ENTSCHEID[m.entscheid] && r !== 'u') zV[r]++; });
       const tf = mitRes.reduce((a, m) => a + m.tore_fuer, 0), tg = mitRes.reduce((a, m) => a + m.tore_gegen, 0);
       const pp = { chancen: 0, tore: 0, gegentore: 0 }, bp = { chancen: 0, gegentore: 0, tore: 0 };
       let pimE = 0, pimG = 0;
@@ -304,7 +307,7 @@ export async function mount(root) {
         <section class="st-karte">
           <h3 class="gruppe">Bilanz <span>${plural(mitRes.length, 'Match', 'Matches')}</span></h3>
           <div class="st-kpis">
-            ${kpi(z.s, 'Siege')}${kpi(z.u, 'Unentsch.')}${kpi(z.n, 'Niederl.')}
+            ${kpi(z.s, 'Siege', zV.s ? `davon ${zV.s} n.V./n.P.` : '')}${kpi(z.u, 'Unentsch.')}${kpi(z.n, 'Niederl.', zV.n ? `davon ${zV.n} n.V./n.P.` : '')}
             ${kpi(`${tf}:${tg}`, 'Tore', mitRes.length ? `Ø ${(tf / mitRes.length).toFixed(1)} : ${(tg / mitRes.length).toFixed(1)}` : '')}
           </div>
         </section>
@@ -551,7 +554,7 @@ export async function mount(root) {
           <div class="st-vs">
             <div><small class="muted">${datumText(D.datum)}${D.ort ? ` · ${ORT[D.ort]}` : ''}${D.wettbewerb ? ` · ${WETTBEWERB[D.wettbewerb]}` : ''}</small>
               <strong>${esc(D.gegner || 'Gegner?')}</strong>${D.liga ? `<small class="muted">${esc(D.liga)}</small>` : ''}</div>
-            ${D.tore_fuer != null ? `<span class="st-gross-res ${D.tore_fuer > D.tore_gegen ? 's' : D.tore_fuer < D.tore_gegen ? 'n' : 'u'}">${D.tore_fuer}:${D.tore_gegen}</span>` : ''}
+            ${D.tore_fuer != null ? `<span class="st-gross-res ${D.tore_fuer > D.tore_gegen ? 's' : D.tore_fuer < D.tore_gegen ? 'n' : 'u'}">${resGross(D.tore_fuer, D.tore_gegen, D.entscheid)}</span>` : ''}
           </div>
           <label>Match im Linien-Tool
             <select name="einsatz">
@@ -624,7 +627,8 @@ export async function mount(root) {
         abschnitte: D.abschnitte, abschnitt_min: D.abschnitt_min,
         stat_am: D.manuell ? null : new Date().toISOString(),
       };
-      if (D.tore_fuer != null && D.tore_gegen != null) daten.resultat = `${D.tore_fuer}:${D.tore_gegen}`;
+      if (!D.manuell) daten.entscheid = D.tore_fuer !== D.tore_gegen ? D.entscheid ?? null : null;
+      if (D.tore_fuer != null && D.tore_gegen != null) daten.resultat = L.resultatText(D.tore_fuer, D.tore_gegen, D.entscheid);
       let einsatzId = einsatzWahl;
       if (einsatzWahl === 'neu') {
         const neu = await db(sb.from('einsaetze').insert({
@@ -773,7 +777,7 @@ export async function mount(root) {
         </div>
         ${ro ? banner() : ''}
         <section class="st-karte st-score">
-          <span class="st-gross-res ${r || ''}">${resText(E) || '–:–'}</span>
+          <span class="st-gross-res ${r || ''}">${E.tore_fuer != null && E.tore_gegen != null ? resGross(E.tore_fuer, E.tore_gegen, E.entscheid) : esc(E.resultat || '–:–')}</span>
           <div class="st-kpis klein">
             <div><b>${R.pp.chancen ? `${R.pp.tore}/${R.pp.chancen}` : '–'}</b><small>Powerplay</small></div>
             <div><b>${R.bp.chancen ? `${R.bp.gegentore}/${R.bp.chancen}` : '–'}</b><small>Gegentore im BP</small></div>
@@ -826,6 +830,9 @@ export async function mount(root) {
           <label>Tore wir<input type="number" inputmode="numeric" min="0" name="tf" value="${E.tore_fuer ?? ''}"></label>
           <label>Tore Gegner<input type="number" inputmode="numeric" min="0" name="tg" value="${E.tore_gegen ?? ''}"></label>
         </div>
+        <label>Entscheid<select name="entscheid">${[['', 'regulär'], ['nv', 'nach Verlängerung (n.V.)'], ['np', 'nach Penaltys (n.P.)']]
+          .map(([k, t]) => `<option value="${k}" ${(E.entscheid || '') === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <p class="error" hidden></p>
         <div class="st-2">
           <label>Heim / Auswärts<select name="ort"><option value="">–</option>${Object.entries(ORT).map(([k, v]) => `<option value="${k}" ${E.ort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
           <label>Wettbewerb<select name="wettbewerb"><option value="">–</option>${Object.entries(WETTBEWERB).map(([k, v]) => `<option value="${k}" ${E.wettbewerb === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
@@ -842,10 +849,15 @@ export async function mount(root) {
         d.querySelector('.btn-ok').onclick = async () => {
           const f = n => d.querySelector(`[name=${n}]`).value.trim();
           const zahl = n => f(n) === '' ? null : Math.max(0, parseInt(f(n), 10) || 0);
-          const tf = zahl('tf'), tg = zahl('tg');
+          const tf = zahl('tf'), tg = zahl('tg'), ent = f('entscheid') || null;
+          if (ent && (tf == null || tg == null || tf === tg)) {
+            const err = d.querySelector('.error');
+            err.textContent = 'Nach Verlängerung/Penaltys braucht es ein Resultat mit Sieger (z.B. 6:7).'; err.hidden = false;
+            return;
+          }
           await db(sb.from('einsaetze').update({
             datum: f('datum') || E.datum, titel: f('titel') || null, ort: f('ort') || null, wettbewerb: f('wettbewerb') || null,
-            tore_fuer: tf, tore_gegen: tg, resultat: tf != null && tg != null ? `${tf}:${tg}` : E.resultat,
+            tore_fuer: tf, tore_gegen: tg, entscheid: ent, resultat: tf != null && tg != null ? L.resultatText(tf, tg, ent) : E.resultat,
             abschnitte: +f('abs'), abschnitt_min: Math.min(30, Math.max(5, zahl('min') || 20)),
           }).eq('id', E.id), 'Gespeichert');
           schliesse(); neuLaden();
@@ -1033,7 +1045,8 @@ export async function mount(root) {
       const altF = vorher.filter(e => e.art === 'tor').length, altG = vorher.filter(e => e.art === 'gegentor').length;
       const passteVorher = E.tore_fuer == null || (E.tore_fuer === altF && E.tore_gegen === altG);
       if (passteVorher && (tf !== E.tore_fuer || tg !== E.tore_gegen))
-        await db(sb.from('einsaetze').update({ tore_fuer: tf, tore_gegen: tg, resultat: `${tf}:${tg}` }).eq('id', E.id));
+        await db(sb.from('einsaetze').update({ tore_fuer: tf, tore_gegen: tg, resultat: L.resultatText(tf, tg, E.entscheid),
+          ...(tf === tg && E.entscheid ? { entscheid: null } : {}) }).eq('id', E.id));
     }
 
     if (await lade()) zeichne();

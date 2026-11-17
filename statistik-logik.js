@@ -22,6 +22,11 @@ export const ART = {
 };
 export const MINUTEN = ['2', '2+2', '5', '10', '2+10', 'MS'];
 
+// ---- Entscheid: nach Verlängerung / nach Penaltys ----------------
+export const ENTSCHEID = { nv: 'n.V.', np: 'n.P.' };
+export const entscheidText = ent => ENTSCHEID[ent] ? ` ${ENTSCHEID[ent]}` : '';
+export const resultatText = (tf, tg, ent) => `${tf}:${tg}${tf !== tg ? entscheidText(ent) : ''}`;
+
 // ---- Wettbewerb-Auswahl (Statistik + Analyse) -----------------
 // Mehrere Wettbewerbe wählbar (wb = Array der Schlüssel, darf auch leer sein), Standard nur Meisterschaft.
 // Match ohne Angabe = Meisterschaft.
@@ -294,7 +299,13 @@ export function parseImport(text) {
   if (fehler.length) throw new Error(fehler.slice(0, 3).join(' · '));
 
   const tore = Array.isArray(d.tore) ? d.tore.map(x => x == null ? null : +x) : [null, null];
+  // n.V./n.P.: aus dem Import, sonst n.V., wenn ein Tor nach der regulären Spielzeit fiel
+  const regulaer = spielSek({ abschnitte: Number.isInteger(d.abschnitte) ? d.abschnitte : null,
+    abschnitt_min: Number.isInteger(d.abschnitt_min) ? d.abschnitt_min : null });
+  const entscheid = ENTSCHEID[d.entscheid] ? d.entscheid
+    : ereignisse.some(e => (e.art === 'tor' || e.art === 'gegentor') && e.zeit > regulaer) ? 'nv' : null;
   return {
+    entscheid,
     datum: d.datum,
     ort: d.ort === 'heim' || d.ort === 'auswaerts' ? d.ort : null,
     gegner: d.gegner ? String(d.gegner).trim() : null,

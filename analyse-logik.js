@@ -13,10 +13,12 @@ export const hatTore = m => toreVon(m).length > 0;
 
 // Resultat: aus Einsatz, sonst aus den erfassten Toren
 export function resultat(m) {
-  if (m.tore_fuer != null && m.tore_gegen != null) return { f: m.tore_fuer, g: m.tore_gegen };
+  if (m.tore_fuer != null && m.tore_gegen != null)
+    return { f: m.tore_fuer, g: m.tore_gegen, text: L.resultatText(m.tore_fuer, m.tore_gegen, m.entscheid) };
   const t = toreVon(m);
   if (!t.length) return null;
-  return { f: t.filter(e => e.art === 'tor').length, g: t.filter(e => e.art === 'gegentor').length };
+  const f = t.filter(e => e.art === 'tor').length, g = t.filter(e => e.art === 'gegentor').length;
+  return { f, g, text: L.resultatText(f, g, m.entscheid) };
 }
 export const ergebnis = r => !r ? null : r.f > r.g ? 's' : r.f < r.g ? 'n' : 'u';
 

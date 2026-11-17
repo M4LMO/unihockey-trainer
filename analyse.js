@@ -314,25 +314,26 @@ export async function mount(root) {
     const m = mitTore.find(x => x.id === matchId);
     const V = A.matchVerlauf(m), r = A.resultat(m), erg = A.ergebnis(r);
     const fT = V.punkte.at(-1)?.f ?? 0, gT = V.punkte.at(-1)?.g ?? 0;
-    const unvollst = r && (r.f !== fT || r.g !== gT);
+    // n.P.: das Siegtor im Penaltyschiessen steht nicht im Telegramm
+    const unvollst = r && (r.f !== fT || r.g !== gT) && !(m.entscheid === 'np' && fT === gT && Math.min(r.f, r.g) === fT);
     const sum = V.zeit.vorne + V.zeit.gleich + V.zeit.hinten || 1;
     const teil = (k, text) => V.zeit[k] ? `<span class="an-st ${k}" style="flex:${V.zeit[k]}" title="${text}"><b>${pct(V.zeit[k], sum)} %</b></span>` : '';
     ziel.innerHTML = `
       <label class="an-match">Match
         <select>${mitTore.map(x => {
           const rr = A.resultat(x);
-          return `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(datumText(x.datum, false))} · ${esc(x.titel || 'Match')}${rr ? ` · ${rr.f}:${rr.g}` : ''}</option>`;
+          return `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(datumText(x.datum, false))} · ${esc(x.titel || 'Match')}${rr ? ` · ${esc(rr.text)}` : ''}</option>`;
         }).join('')}</select>
       </label>
       <section class="an-karte">
         <div class="an-kopf">
           <span class="an-erg-b ${erg || 'leer'}">${erg ? erg.toUpperCase() : '–'}</span>
           <div><strong>${esc(m.titel || 'Match')}</strong><small class="muted">${esc(datumText(m.datum))}${m.wettbewerb ? ` · ${esc(WETTBEWERB[m.wettbewerb] || m.wettbewerb)}` : ''}</small></div>
-          <b class="an-res">${r ? `${r.f}:${r.g}` : ''}</b>
+          <b class="an-res">${r ? `${r.f}:${r.g}${r.f !== r.g && L.ENTSCHEID[m.entscheid] ? `<small>${L.ENTSCHEID[m.entscheid]}</small>` : ''}` : ''}</b>
         </div>
         ${legende(['f', 'Wir'], ['g', 'Gegner'], ['pp', 'Überzahl'], ['bp', 'Unterzahl'])}
         <div class="an-chart an-verlauf"></div>
-        <p class="muted klein">Punkte antippen für Details.${unvollst ? ` ⚠️ Im Telegramm sind ${fT}:${gT} Tore erfasst, Resultat ist ${r.f}:${r.g}.` : ''}</p>
+        <p class="muted klein">Punkte antippen für Details.${unvollst ? ` ⚠️ Im Telegramm sind ${fT}:${gT} Tore erfasst, Resultat ist ${esc(r.text)}.` : ''}</p>
       </section>
       <section class="an-karte">
         <h3 class="gruppe">Spielstand</h3>
@@ -501,7 +502,7 @@ export async function mount(root) {
       if (f.diff) svg.append(el('path', { d: balken(x, f.diff > 0 ? y0 - 1 : y0 + 1, w, sy(f.diff), f.diff > 0), class: `an-erg ${f.erg}` }));
       else svg.append(el('rect', { x, y: y0 - 2, width: w, height: 4, rx: 2, class: 'an-erg u' }));
       const hit = el('rect', { x: x0 + i * bw, y: 0, width: bw, height: H, fill: 'transparent', style: 'cursor:pointer' });
-      const zeig = () => tip.zeige(`<b>${esc(datumText(f.m.datum, false))} · ${f.r.f}:${f.r.g}</b><span>${esc(f.m.titel || 'Match')}</span><small>${A.hatTore(f.m) ? 'Nochmals antippen → Verlauf' : 'Kein Telegramm erfasst'}</small>`,
+      const zeig = () => tip.zeige(`<b>${esc(datumText(f.m.datum, false))} · ${esc(f.r.text)}</b><span>${esc(f.m.titel || 'Match')}</span><small>${A.hatTore(f.m) ? 'Nochmals antippen → Verlauf' : 'Kein Telegramm erfasst'}</small>`,
         x0 + i * bw + bw / 2, Math.min(y0 - sy(Math.max(0, f.diff)), y0) - 2);
       hit.addEventListener('pointerenter', zeig);
       hit.addEventListener('click', () => {

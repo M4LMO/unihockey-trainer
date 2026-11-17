@@ -214,3 +214,6 @@ li.st-ev { cursor: default; }
 .st-wb { margin-top: 8px; }
 .st-liste li.st-zaehlt-nicht .karte { opacity: .55; }
 .karte .info small.st-zn { color: var(--muted); font-style: italic; }
+
+/* n.V. / n.P. hinter grossem Resultat */
+.st-gross-res small { font-size: .45em; margin-left: 4px; font-weight: 700; vertical-align: middle; }
