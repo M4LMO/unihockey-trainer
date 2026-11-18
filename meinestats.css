@@ -199,7 +199,13 @@
 .ms-jun:not([open]) { opacity: .85; }
 .ms-jun-hinweis { margin: 0; font-size: .82rem; line-height: 1.45; background: #fef3c7; color: #92400e; border-radius: 8px; padding: 8px 10px; }
 .ms-wg { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.ms-wg-zeile { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: 62px 1fr; gap: 8px; padding: 7px 6px; border-radius: 8px; }
+.ms-wg-gruppe { display: grid; grid-template-columns: 62px 1fr; gap: 8px; align-items: start; padding: 4px 6px; border-radius: 10px; }
+.ms-wg-gruppe.mehrere { background: #eff6ff; border-left: 4px solid #2563eb; padding-left: 8px; margin: 4px 0; }
+.ms-wg-saison { padding-top: 7px; display: grid; gap: 4px; justify-items: start; }
+.ms-wg-anz { font-size: .66rem; font-weight: 700; color: #fff; background: #2563eb; border-radius: 99px; padding: 1px 7px; white-space: nowrap; }
+.ms-wg-teams { display: grid; gap: 2px; }
+.ms-wg-gruppe.mehrere .ms-wg-teams > * + * { border-top: 1px dashed #bfdbfe; }
+.ms-wg-zeile { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: block; padding: 7px 6px; border-radius: 8px; }
 .ms-wg-zeile:hover { background: var(--bg); }
 .ms-wg-saison { font-size: .8rem; font-weight: 700; color: var(--team); }
 .ms-wg-notiz { font-style: italic; color: #334155 !important; white-space: pre-wrap; }
