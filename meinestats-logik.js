@@ -116,6 +116,23 @@ export function saisonName(s) {
   const k = saisonSchluessel(s);
   return k ? `${k}/${String((k + 1) % 100).padStart(2, '0')}` : String(s || '');
 }
+// Aktuelle Saison (Saisonwechsel am 1. Juli wie in kontext.js): November 2026 → 2026 (= 2026/27)
+export function aktuelleSaison(jetzt = new Date()) {
+  return jetzt.getMonth() >= 6 ? jetzt.getFullYear() : jetzt.getFullYear() - 1;
+}
+// Werdegang: wie viele Saisons gespielt, seit wann, die wievielte Saison läuft
+//   junioren/aktiv = Listen mit { saison } ; eine Saison in beiden Bereichen zählt einmal
+export function laufbahn(junioren, aktiv, jetzt = new Date()) {
+  const keys = l => new Set(l.map(x => saisonSchluessel(x.saison)).filter(Boolean));
+  const j = keys(junioren), a = keys(aktiv), alle = new Set([...j, ...a]);
+  if (!alle.size) return null;
+  const start = Math.min(...alle), jetztS = aktuelleSaison(jetzt);
+  return {
+    start, startName: saisonName(String(start)),
+    gespielt: alle.size, junioren: j.size, aktiv: a.size, beide: [...j].filter(k => a.has(k)).length,
+    nummer: jetztS - start + 1, aktuellName: saisonName(String(jetztS)),
+  };
+}
 // Abschnitte: neueste zuerst
 export function sortiereAbschnitte(liste) {
   return [...liste].sort((a, b) => saisonSchluessel(b.saison) - saisonSchluessel(a.saison)

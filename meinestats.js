@@ -193,6 +193,8 @@ export async function mount(root) {
         ${fan.length ? `<p class="muted klein">dazu ${plural(fan.length, 'Spiel', 'Spiele')} als Fan geschaut</p>` : ''}
       </section>
 
+      ${laufbahnHTML()}
+
       <section class="ms-karte">
         <h3 class="gruppe">🎽 Als Trainer <span>${plural(teamsT, 'Team', 'Teams')}</span></h3>
         <div class="ms-kpis">
@@ -244,6 +246,22 @@ export async function mount(root) {
     }
   }
 
+  // ---- Mein Unihockey: seit wann, wievielte Saison, Saisons gespielt (Junioren-Werdegang + Aktiv-Saisons) ----
+  function laufbahnHTML() {
+    const L = M.laufbahn(D.WG, aktivA().filter(a => a.bereich === 'spieler'));
+    if (!L) return '';
+    return `
+      <section class="ms-karte">
+        <h3 class="gruppe">🏑 Mein Unihockey</h3>
+        <div class="ms-kpis">
+          ${kpi(`seit ${esc(L.startName)}`, 'mit Unihockey begonnen')}
+          ${kpi(`${L.nummer}. Saison`, `aktuell ${esc(L.aktuellName)}`)}
+          ${kpi(L.gespielt, 'Saisons gespielt', `${L.junioren} Junioren · ${L.aktiv} Aktiv${L.beide ? ` (${L.beide} davon beides)` : ''}`)}
+        </div>
+        <p class="muted klein">Aus Junioren-Werdegang und Aktiv-Saisons als Spieler (ohne reine Trainer-Saisons).</p>
+      </section>`;
+  }
+
   // ---- Junioren-Werdegang (ungefähr, isoliert – fliesst in keine andere Statistik ein) ----
   function werdegangHTML() {
     if (D.wgFehlt) return '';
@@ -252,21 +270,30 @@ export async function mount(root) {
     if (!liste.length && ro) return '';
     const saisons = new Set(liste.map(w => M.saisonName(w.saison))).size;
     const spiele = liste.reduce((n, w) => n + (w.spiele ?? 0), 0);
+    // gleiche Saison zusammenfassen (z.B. in zwei Teams gespielt) → wird hervorgehoben
+    const gruppen = [];
+    for (const w of liste) {
+      const k = M.saisonName(w.saison), g = gruppen.find(([x]) => x === k);
+      g ? g[1].push(w) : gruppen.push([k, [w]]);
+    }
     return `
       <details class="ms-karte ms-jun" ${junOffen ? 'open' : ''}>
         <summary><h3 class="gruppe">🧒 Junioren-Werdegang <span>${plural(saisons, 'Saison', 'Saisons')}</span></h3></summary>
         <p class="ms-jun-hinweis">⚠️ Ungefähre Angaben, keine genauen Statistiken – zeigt den Werdegang. Fliesst in keine andere Zahl ein.</p>
         ${liste.length ? `<p class="muted klein">${plural(saisons, 'Saison', 'Saisons')}${spiele ? ` · ca. ${spiele} Spiele` : ''}</p>` : ''}
         ${!ro ? '<div><button class="btn primary small ms-wg-neu">＋ Eintrag</button></div>' : ''}
-        <ul class="ms-wg">${liste.map(w => `
-          <li><button class="ms-wg-zeile" data-wg="${w.id}" ${ro ? 'tabindex="-1"' : ''}>
-            <span class="ms-wg-saison">${esc(w.saison)}</span>
-            <span class="ms-mitte">
-              <b>${esc([vName(w.verein_id), w.team].filter(Boolean).join(' – ') || '–')}</b>
-              <small>${[w.ohne_meisterschaft ? 'ohne Meisterschaft' : w.liga && esc(w.liga), w.spiele != null && `ca. ${w.spiele} Spiele`].filter(Boolean).join(' · ')}</small>
-              ${w.notiz ? `<small class="ms-wg-notiz">${esc(w.notiz)}</small>` : ''}
-            </span>
-          </button></li>`).join('') || '<li class="muted klein">Noch keine Einträge.</li>'}</ul>
+        <ul class="ms-wg">${gruppen.map(([saison, ws]) => `
+          <li class="ms-wg-gruppe ${ws.length > 1 ? 'mehrere' : ''}">
+            <span class="ms-wg-saison">${esc(saison)}${ws.length > 1 ? `<span class="ms-wg-anz">${ws.length} Teams</span>` : ''}</span>
+            <div class="ms-wg-teams">${ws.map(w => `
+              <button class="ms-wg-zeile" data-wg="${w.id}" ${ro ? 'tabindex="-1"' : ''}>
+                <span class="ms-mitte">
+                  <b>${esc([vName(w.verein_id), w.team].filter(Boolean).join(' – ') || '–')}</b>
+                  <small>${[w.ohne_meisterschaft ? 'ohne Meisterschaft' : w.liga && esc(w.liga), w.spiele != null && `ca. ${w.spiele} Spiele`].filter(Boolean).join(' · ')}</small>
+                  ${w.notiz ? `<small class="ms-wg-notiz">${esc(w.notiz)}</small>` : ''}
+                </span>
+              </button>`).join('')}</div>
+          </li>`).join('') || '<li class="muted klein">Noch keine Einträge.</li>'}</ul>
       </details>`;
   }
 
