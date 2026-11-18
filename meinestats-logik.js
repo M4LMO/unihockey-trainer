@@ -131,6 +131,7 @@ export function laufbahn(junioren, aktiv, jetzt = new Date()) {
     start, startName: saisonName(String(start)),
     gespielt: alle.size, junioren: j.size, aktiv: a.size, beide: [...j].filter(k => a.has(k)).length,
     nummer: jetztS - start + 1, aktuellName: saisonName(String(jetztS)),
+    komplett: jetztS - start,   // die Einstiegs-Saison war nicht komplett → zählt hier nicht
   };
 }
 // Abschnitte: neueste zuerst
