@@ -122,16 +122,20 @@ export function aktuelleSaison(jetzt = new Date()) {
 }
 // Werdegang: wie viele Saisons gespielt, seit wann, die wievielte Saison läuft
 //   junioren/aktiv = Listen mit { saison } ; eine Saison in beiden Bereichen zählt einmal
+//   Die Einstiegs-Saison war nicht komplett → zählt weder bei «x. Saison» noch bei «Saisons gespielt»
+//   (laufende Saison zählt mit, sobald sie eingetragen ist)
 export function laufbahn(junioren, aktiv, jetzt = new Date()) {
   const keys = l => new Set(l.map(x => saisonSchluessel(x.saison)).filter(Boolean));
-  const j = keys(junioren), a = keys(aktiv), alle = new Set([...j, ...a]);
-  if (!alle.size) return null;
-  const start = Math.min(...alle), jetztS = aktuelleSaison(jetzt);
+  const j0 = keys(junioren), a0 = keys(aktiv), alle0 = new Set([...j0, ...a0]);
+  if (!alle0.size) return null;
+  const start = Math.min(...alle0), jetztS = aktuelleSaison(jetzt);
+  const ohneStart = m => new Set([...m].filter(k => k !== start));
+  const j = ohneStart(j0), a = ohneStart(a0), alle = ohneStart(alle0);
   return {
     start, startName: saisonName(String(start)),
     gespielt: alle.size, junioren: j.size, aktiv: a.size, beide: [...j].filter(k => a.has(k)).length,
-    nummer: jetztS - start + 1, aktuellName: saisonName(String(jetztS)),
-    komplett: jetztS - start,   // die Einstiegs-Saison war nicht komplett → zählt hier nicht
+    aktuellName: saisonName(String(jetztS)),
+    komplett: jetztS - start,
   };
 }
 // Abschnitte: neueste zuerst
