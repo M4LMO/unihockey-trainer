@@ -255,7 +255,7 @@ export async function mount(root) {
         <h3 class="gruppe">🏑 Mein Unihockey</h3>
         <div class="ms-kpis">
           ${kpi(`seit ${esc(L.startName)}`, 'mit Unihockey begonnen')}
-          ${kpi(`${L.nummer}. Saison`, `aktuell ${esc(L.aktuellName)}`)}
+          ${kpi(`${L.komplett}. komplette Saison`, `aktuell ${esc(L.aktuellName)} · ${esc(L.startName)} nur teilweise`)}
           ${kpi(L.gespielt, 'Saisons gespielt', `${L.junioren} Junioren · ${L.aktiv} Aktiv${L.beide ? ` (${L.beide} davon beides)` : ''}`)}
         </div>
         <p class="muted klein">Aus Junioren-Werdegang und Aktiv-Saisons als Spieler (ohne reine Trainer-Saisons).</p>
