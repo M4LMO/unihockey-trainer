@@ -256,9 +256,9 @@ export async function mount(root) {
         <div class="ms-kpis">
           ${kpi(`seit ${esc(L.startName)}`, 'mit Unihockey begonnen')}
           ${kpi(`${L.komplett}. Saison`, `läuft aktuell (${esc(L.aktuellName)})`)}
-          ${kpi(L.gespielt, 'Saisons gespielt', `${L.junioren} Junioren · ${L.aktiv} Aktiv${L.beide ? ` (${L.beide} davon beides)` : ''}`)}
+          ${kpi(L.gespielt, 'Saisons gespielt', `${L.junioren} Junioren · ${L.aktiv} Aktiv${L.beide ? ` (${L.beide} davon beides)` : ''} · inkl. laufende`)}
         </div>
-        <p class="muted klein">Aus Junioren-Werdegang und Aktiv-Saisons als Spieler (ohne reine Trainer-Saisons).</p>
+        <p class="muted klein">Aus Junioren-Werdegang und Aktiv-Saisons als Spieler (ohne reine Trainer-Saisons). Die Einstiegs-Saison ${esc(L.startName)} war nicht komplett und zählt nicht mit.</p>
       </section>`;
   }
 
