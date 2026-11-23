@@ -387,7 +387,7 @@ export async function mount(root) {
     const meta = [
       s.livestream ? '📺 Livestream' : halle && esc(halle),
       b === 'fan' && s.liga && esc(s.liga),
-      s.spielart !== 'meisterschaft' && b !== 'fan' && `<span class="ms-art">${esc(M.SPIELARTEN[s.spielart])}</span>`,
+      s.spielart !== 'meisterschaft' && b !== 'fan' && `<span class="ms-art">${esc(M.SPIELARTEN[s.spielart] || 'Turnier')}</span>`,
       s.notiz && `<i>${esc(s.notiz)}</i>`,
     ].filter(Boolean).join(' · ');
     const ichT = b === 'trainer' ? (s.ich === 'nicht' ? '<span class="ms-ich nicht">nicht dabei</span>' : '')
@@ -1025,7 +1025,7 @@ export async function mount(root) {
     if (fan) { pHeim.set(VM.get(s.heim_id)); pGast.set(VM.get(s.gast_id)); f.liga.value = s.liga || ''; }
     f.tore1.value = s.tore1 ?? ''; f.tore2.value = s.tore2 ?? '';
     f.entscheid.value = s.entscheid || '';
-    f.spielart.value = s.spielart || 'meisterschaft';
+    f.spielart.value = M.SPIELARTEN[s.spielart] ? s.spielart : s.spielart === 'ko' ? 'turnier' : 'meisterschaft';
     f.querySelectorAll('[name=ich]').forEach(r => { r.checked = r.value === s.ich; });
     f.abgesagt.checked = !!s.abgesagt;
     f.notiz.value = s.notiz || '';
