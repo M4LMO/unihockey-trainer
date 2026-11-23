@@ -215,3 +215,10 @@
 .ms-vor-kopf { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--bg); padding: 4px 12px; }
 .ms-vor button.akt { background: #fee2e2; font-weight: 600; }
 .ms-pick > label, label > .ms-pick { display: block; }
+
+/* Mehrere Blöcke (Turniere) im selben Dropdown: Team + Saison */
+.ms-unter { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 8px; }
+.ms-unter-kopf { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: .95rem; padding: 0 4px; }
+.ms-unter-kopf::before { content: '🏆'; }
+.ms-unter-kopf small { color: var(--muted); font-weight: 500; font-size: .78rem; }
+.ms-unter-kopf small:last-child { flex-basis: 100%; }
