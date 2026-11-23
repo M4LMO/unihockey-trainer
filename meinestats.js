@@ -385,21 +385,42 @@ export async function mount(root) {
   // ==============================================================
   //  SPIELE (pro Saison/Team)
   // ==============================================================
+  // Blöcke desselben Teams in derselben Saison (z.B. La Saga + Prague Games) zu EINEM Dropdown zusammenfassen.
+  // Nur Anzeige – in der Datenbank bleiben es eigene Blöcke (mit eigener Gruppe, Spielen, Tabelle).
+  function letztesDatum(a) { return spieleVon(a.id).filter(s => s.datum).at(-1)?.datum || ''; }
+  function gruppiereBloecke(liste) {
+    const gruppen = new Map();
+    for (const a of liste) {
+      const k = a.bereich === 'fan' ? a.id : `${a.bereich}|${a.verein_id}|${a.team || ''}|${M.saisonName(a.saison)}`;
+      if (!gruppen.has(k)) gruppen.set(k, { key: k, bloecke: [] });
+      gruppen.get(k).bloecke.push(a);
+    }
+    const neuestes = g => g.bloecke.map(letztesDatum).sort().at(-1) || '';
+    for (const g of gruppen.values())   // innerhalb: neuestes Turnier zuerst (ohne Spiele ganz oben)
+      g.bloecke.sort((x, y) => (letztesDatum(y) || '9999').localeCompare(letztesDatum(x) || '9999') || String(x.kategorie || '').localeCompare(String(y.kategorie || ''), 'de'));
+    return [...gruppen.values()].sort((x, y) => M.saisonSchluessel(y.bloecke[0].saison) - M.saisonSchluessel(x.bloecke[0].saison)
+      || neuestes(y).localeCompare(neuestes(x)));
+  }
+  function gruppeOffen(g) { return offen.has(g.key) || g.bloecke.some(a => offen.has(a.id)); }
+
   function tabSpiele(ziel) {
-    const liste = M.sortiereAbschnitte(aktivA().filter(a => a.bereich === bereich));
-    if (ersterAufbau && liste[0]) { offen.add(liste[0].id); ersterAufbau = false; }
+    const gruppen = gruppiereBloecke(aktivA().filter(a => a.bereich === bereich));
+    if (ersterAufbau && gruppen[0]) { offen.add(gruppen[0].key); ersterAufbau = false; }
     ziel.innerHTML = `
       <div class="seg ms-bereich">${Object.entries(M.BEREICHE).map(([k, b]) => `<button data-b="${k}" class="${bereich === k ? 'on' : ''}">${b.icon} ${b.name}</button>`).join('')}</div>
-      <div class="ms-bloecke">${liste.map(blockHTML).join('') || `<div class="hinweis"><p>Noch nichts erfasst.</p>${!ro ? '<button class="btn primary ms-neu-a">＋ Saison / Team anlegen</button>' : ''}</div>`}</div>`;
+      <div class="ms-bloecke">${gruppen.map(gruppeHTML).join('') || `<div class="hinweis"><p>Noch nichts erfasst.</p>${!ro ? '<button class="btn primary ms-neu-a">＋ Saison / Team anlegen</button>' : ''}</div>`}</div>`;
     ziel.querySelector('.ms-bereich').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
       bereich = b.dataset.b; setEinst({ bereich });
-      const l = M.sortiereAbschnitte(aktivA().filter(a => a.bereich === bereich));
-      if (l[0] && ![...offen].some(id => l.some(a => a.id === id))) offen.add(l[0].id);
+      const l = gruppiereBloecke(aktivA().filter(a => a.bereich === bereich));
+      if (l[0] && !l.some(gruppeOffen)) offen.add(l[0].key);
       tabSpiele(ziel);
     };
     ziel.querySelector('.ms-neu-a')?.addEventListener('click', () => oeffneAbschnitt(null));
-    ziel.querySelectorAll('details[data-a]').forEach(d => d.addEventListener('toggle', () => d.open ? offen.add(d.dataset.a) : offen.delete(d.dataset.a)));
+    ziel.querySelectorAll('details[data-g]').forEach(d => d.addEventListener('toggle', () => {
+      const ids = d.dataset.ids.split(',');
+      if (d.open) offen.add(d.dataset.g); else { offen.delete(d.dataset.g); ids.forEach(id => offen.delete(id)); }
+    }));
     ziel.onclick = e => {
       const sp = e.target.closest('[data-sp]');
       if (sp) return oeffneSpiel(D.SP.find(s => s.id === sp.dataset.sp));
@@ -411,21 +432,46 @@ export async function mount(root) {
     };
   }
 
-  function blockHTML(a) {
-    const sp = spieleVon(a.id);
-    const fan = a.bereich === 'fan';
-    const gezaehlt = sp.filter(s => !s.abgesagt);
+  // Kurz-Info (Bilanz, dabei, Ränge) über einen oder mehrere Blöcke
+  function blockInfo(bloecke) {
+    const a = bloecke[0], fan = a.bereich === 'fan';
+    const gezaehlt = bloecke.flatMap(x => spieleVon(x.id)).filter(s => !s.abgesagt);
+    if (fan) return `${plural(gezaehlt.length, 'Spiel', 'Spiele')} · ${gezaehlt.filter(s => s.livestream).length} 📺`;
     const bTeam = M.bilanz(gezaehlt);
     const meine = gezaehlt.filter(s => M.zaehlt(s, a.bereich, 'meine'));
-    const raenge = M.schlussrang(D.TB, a.id);
-    let info;
-    if (fan) info = `${plural(gezaehlt.length, 'Spiel', 'Spiele')} · ${gezaehlt.filter(s => s.livestream).length} 📺`;
-    else {
-      info = `${bTeam.sp} Sp · ${bTeam.s}S ${bTeam.u}U ${bTeam.n}N`;
-      if (a.bereich === 'trainer') info += ` · ich ${meine.length}× dabei`;
-      if (a.bereich === 'spieler') info += ` · ${meine.length}× im Tor, ${gezaehlt.filter(s => s.ich === 'ersatz').length}× Ersatz`;
-      if (raenge.length) info += ` · ${raenge.map(r => `${r.rang}./${r.von}`).join(', ')}`;
-    }
+    const raenge = bloecke.flatMap(x => M.schlussrang(D.TB, x.id));
+    let info = `${bTeam.sp} Sp · ${bTeam.s}S ${bTeam.u}U ${bTeam.n}N`;
+    if (a.bereich === 'trainer') info += ` · ich ${meine.length}× dabei`;
+    if (a.bereich === 'spieler') info += ` · ${meine.length}× im Tor, ${gezaehlt.filter(s => s.ich === 'ersatz').length}× Ersatz`;
+    if (raenge.length) info += ` · ${raenge.map(r => `${r.rang}./${r.von}`).join(', ')}`;
+    return info;
+  }
+
+  // Ein Dropdown pro Team + Saison (ein oder mehrere Blöcke)
+  function gruppeHTML(g) {
+    const bl = g.bloecke, a = bl[0], mehrere = bl.length > 1;
+    const kats = [...new Set(bl.map(x => x.kategorie).filter(Boolean))];
+    const saisons = [...new Set(bl.map(x => x.saison))];
+    // Staff nur einmal oben, wenn bei allen gleich
+    const staffGleich = mehrere && bl.every(x => (x.staff || '') === (a.staff || '')) ? a.staff : null;
+    return `
+      <details class="ms-block" data-g="${esc(g.key)}" data-ids="${bl.map(x => x.id).join(',')}" ${gruppeOffen(g) ? 'open' : ''}>
+        <summary>
+          <span class="ms-saison">${esc(saisons.join(' / '))}${kats.length ? ` · ${esc(kats.join(' + '))}` : ''}</span>
+          <b>${esc(abschnittTitel(a))}</b>
+          <small>${blockInfo(bl)}</small>
+        </summary>
+        <div class="ms-block-inhalt">
+          ${staffGleich ? `<p class="ms-meta"><span>${esc(staffGleich).replace(/\n/g, '<br>')}</span></p>` : ''}
+          ${bl.map(x => blockInhaltHTML(x, { unter: mehrere, ohneStaff: !!staffGleich })).join('')}
+        </div>
+      </details>`;
+  }
+
+  // Inhalt eines Blocks (Gruppe, Knöpfe, Notiz, Spiele, Tabellen) – bei mehreren mit eigenem Kopf
+  function blockInhaltHTML(a, { unter = false, ohneStaff = false } = {}) {
+    const sp = spieleVon(a.id);
+    const fan = a.bereich === 'fan';
     // Spiele gruppiert nach Teil (z.B. «La Saga Tenero», «Prague Games») – neueste oben
     let zuletztTeil = null;
     const zeilen = neuesteZuerst(sp).map(s => {
@@ -434,25 +480,23 @@ export async function mount(root) {
       return kopf + spielZeile(s);
     }).join('');
     const titel = [...new Set(D.TB.filter(z => z.abschnitt_id === a.id).map(z => z.titel))];
-    return `
-      <details class="ms-block" data-a="${a.id}" ${offen.has(a.id) ? 'open' : ''}>
-        <summary>
-          <span class="ms-saison">${esc(a.saison)}${a.kategorie ? ` · ${esc(a.kategorie)}` : ''}</span>
-          <b>${esc(abschnittTitel(a))}</b>
-          <small>${info}</small>
-        </summary>
-        <div class="ms-block-inhalt">
-          ${a.gruppe || a.staff ? `<p class="ms-meta">${a.gruppe ? `<b>${esc(a.gruppe)}</b>` : ''}${a.staff ? `<span>${esc(a.staff).replace(/\n/g, '<br>')}</span>` : ''}</p>` : ''}
+    const staff = ohneStaff ? '' : a.staff;
+    const inhalt = `
+          ${a.gruppe || staff ? `<p class="ms-meta">${a.gruppe ? `<b>${esc(a.gruppe)}</b>` : ''}${staff ? `<span>${esc(staff).replace(/\n/g, '<br>')}</span>` : ''}</p>` : ''}
           ${!ro ? `<div class="ms-aktionen">
             <button class="btn primary small" data-act="spiel" data-a="${a.id}">＋ Spiel</button>
             ${!fan ? `<button class="btn ghost small" data-act="tabelle" data-a="${a.id}">＋ Rangtabelle</button>` : ''}
-            <button class="btn ghost small" data-act="edit" data-a="${a.id}">✏️ ${fan ? 'Saison' : 'Saison/Team'}</button>
+            <button class="btn ghost small" data-act="edit" data-a="${a.id}">✏️ ${fan ? 'Saison' : unter ? (a.kategorie || 'Block') : 'Saison/Team'}</button>
           </div>` : ''}
           ${a.notiz ? `<p class="ms-notiz">${esc(a.notiz)}</p>` : ''}
           <ul class="ms-spiele">${zeilen || '<li class="muted klein">Noch keine Spiele.</li>'}</ul>
-          ${titel.map(t => tabelleHTML(a, t)).join('')}
-        </div>
-      </details>`;
+          ${titel.map(t => tabelleHTML(a, t)).join('')}`;
+    if (!unter) return inhalt;
+    return `
+        <section class="ms-unter">
+          <h4 class="ms-unter-kopf">${esc(a.kategorie || 'Ohne Kategorie')}${a.saison ? ` <small>${esc(a.saison)}</small>` : ''}<small>${blockInfo([a])}</small></h4>
+          ${inhalt}
+        </section>`;
   }
 
   // Rangtabelle anzeigen (leere Spalten weglassen)
@@ -801,6 +845,8 @@ export async function mount(root) {
     inp.addEventListener('input', () => { wrap.dataset.id = ''; zeige(); });
     inp.addEventListener('focus', zeige);
     inp.addEventListener('blur', () => setTimeout(() => { vor.hidden = true; }, 150));
+    // Esc schliesst zuerst nur die Liste (nicht das ganze Fenster)
+    inp.addEventListener('keydown', e => { if (e.key === 'Escape' && !vor.hidden) { e.preventDefault(); e.stopPropagation(); vor.hidden = true; } });
     vor.addEventListener('mousedown', e => e.preventDefault());
     vor.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -891,7 +937,7 @@ export async function mount(root) {
     const teile = [...new Set(spieleVon(a.id).map(s => s.teil).filter(Boolean))];
     const ichOpt = Object.entries(M.ICH[b] || {});
     f.innerHTML = `
-      <div><h2>${sp ? 'Spiel ändern' : '＋ Spiel'}</h2><p class="muted klein">${M.BEREICHE[b].icon} ${esc(a.saison)} · ${esc(abschnittTitel(a))}</p></div>
+      <div><h2>${sp ? 'Spiel ändern' : '＋ Spiel'}</h2><p class="muted klein">${M.BEREICHE[b].icon} ${esc(a.saison)}${a.kategorie ? ` · ${esc(a.kategorie)}` : ''} · ${esc(abschnittTitel(a))}</p></div>
       ${teile.length || a.kategorie && a.kategorie !== 'Meisterschaft' ? `<label>Teil (optional, z.B. Turnier)<input name="teil" autocomplete="off" placeholder="z.B. La Saga Tenero"></label>` : ''}
       <div class="ms-reihe">
         <label>Datum<input type="date" name="datum"></label>
