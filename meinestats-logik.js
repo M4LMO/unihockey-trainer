@@ -180,17 +180,33 @@ export function schlussrang(tabellenZeilen, abschnittId) {
 }
 
 // Gegner-Bilanz über alle eigenen Spiele (nach Verein)
-export function gegnerBilanz(spiele) {
+//   gruppe(id) → unter welchem Verein zusammengefasst wird (z.B. heutiger Verein nach Fusion)
+//   teile = Bilanz pro ursprünglichem Verein (nur wenn mehrere)
+export function gegnerBilanz(spiele, gruppe = id => id) {
   const map = new Map();
   for (const x of spiele) {
     if (!x.gegner_id) continue;
-    if (!map.has(x.gegner_id)) map.set(x.gegner_id, []);
-    map.get(x.gegner_id).push(x);
+    const k = gruppe(x.gegner_id);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(x);
   }
   return [...map.entries()].map(([id, liste]) => {
     const sortiert = sortiereSpiele(liste);
-    return { id, spiele: sortiert, ...bilanz(liste), anzahl: liste.length, letztes: sortiert.filter(s => s.datum).at(-1)?.datum || null };
+    const ids = [...new Set(liste.map(x => x.gegner_id))];
+    const teile = ids.length > 1 ? ids.map(t => { const l = liste.filter(x => x.gegner_id === t); return { id: t, anzahl: l.length, ...bilanz(l) }; }) : [];
+    return { id, spiele: sortiert, ...bilanz(liste), anzahl: liste.length, teile, letztes: sortiert.filter(s => s.datum).at(-1)?.datum || null };
   });
+}
+
+// Fusionen: Verein → heutiger Verein (Kette nachfolger_id folgen, ohne Endlosschleife)
+export function heutigerVerein(vMap, id) {
+  let akt = id;
+  for (let i = 0; i < 10; i++) {
+    const n = vMap.get(akt)?.nachfolger_id;
+    if (!n || n === id || !vMap.has(n)) break;
+    akt = n;
+  }
+  return akt;
 }
 
 // Zählen nach Schlüssel (z.B. Halle, Liga) → [{ key, n }] absteigend
