@@ -12,8 +12,7 @@ export const SPIELARTEN = {
   meisterschaft: 'Meisterschaft',
   cup: 'Cup',
   test: 'Testspiel',
-  turnier: 'Turnier (Gruppe)',
-  ko: 'Turnier (K.o./Tableau)',
+  turnier: 'Turnier',   // seit SQL 20 ohne Unterscheidung Gruppe/K.o. (steht in der Notiz)
   playoff: 'Playoff',
   abstieg: 'Auf-/Abstieg',
   laenderspiel: 'Länderspiel',
