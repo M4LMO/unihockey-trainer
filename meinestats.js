@@ -102,6 +102,8 @@ export async function mount(root) {
   const bereichVon = sp => AM.get(sp.abschnitt_id)?.bereich;
   const vName = id => VM.get(id)?.name ?? '';
   const vLand = id => { const l = VM.get(id)?.land; return l ? ` <span class="ms-land">${esc(l)}</span>` : ''; };
+  // Spalte ms_werdegang.turnier vorhanden? (SQL 19) – leer: annehmen ja
+  const hatWgTurnier = () => !D.WG.length || 'turnier' in D.WG[0];
   // Spalte nachfolger_id vorhanden? (SQL 18) – sonst Fusions-Felder ausblenden
   const hatFusion = () => !D.V.length || 'nachfolger_id' in D.V[0];
   // «ab 2025/26» → letzte Saison vor der Fusion «2024/25»
@@ -281,19 +283,28 @@ export async function mount(root) {
       const k = M.saisonName(w.saison), g = gruppen.find(([x]) => x === k);
       g ? g[1].push(w) : gruppen.push([k, [w]]);
     }
+    for (const [, ws] of gruppen) ws.sort((x, y) => !!x.turnier - !!y.turnier);   // Turniere unter dem Team
+    // Turniere (z.B. Prague Games) – Spalte «turnier» seit SQL 19
+    const turniere = [...liste].filter(w => w.turnier).sort((a, b) => M.saisonSchluessel(a.saison) - M.saisonSchluessel(b.saison))
+      .map(w => `${w.liga || 'Turnier'} ${String(M.saisonSchluessel(w.saison) || w.saison)}`);
+    const anzText = ws => {
+      const t = ws.filter(w => !w.turnier).length, tu = ws.length - t;
+      return [t > 1 && `${t} Teams`, t === 1 && tu && 'Team', tu && (tu > 1 ? `${tu} Turniere` : 'Turnier')].filter(Boolean).join(' + ');
+    };
     return `
       <details class="ms-karte ms-jun" ${junOffen ? 'open' : ''}>
         <summary><h3 class="gruppe">🧒 Junioren-Werdegang <span>${plural(saisons, 'Saison', 'Saisons')}</span></h3></summary>
         <p class="ms-jun-hinweis">⚠️ Ungefähre Angaben, keine genauen Statistiken – zeigt den Werdegang. Fliesst in keine andere Zahl ein.</p>
         ${liste.length ? `<p class="muted klein">${plural(saisons, 'Saison', 'Saisons')}${spiele ? ` · ca. ${spiele} Spiele` : ''}</p>` : ''}
+        ${turniere.length ? `<p class="klein ms-wg-turniere">🏆 Turniere: ${esc(turniere.join(', '))}</p>` : ''}
         ${!ro ? '<div><button class="btn primary small ms-wg-neu">＋ Eintrag</button></div>' : ''}
         <ul class="ms-wg">${gruppen.map(([saison, ws]) => `
           <li class="ms-wg-gruppe ${ws.length > 1 ? 'mehrere' : ''}">
-            <span class="ms-wg-saison">${esc(saison)}${ws.length > 1 ? `<span class="ms-wg-anz">${ws.length} Teams</span>` : ''}</span>
+            <span class="ms-wg-saison">${esc(saison)}${ws.length > 1 ? `<span class="ms-wg-anz">${esc(anzText(ws))}</span>` : ''}</span>
             <div class="ms-wg-teams">${ws.map(w => `
-              <button class="ms-wg-zeile" data-wg="${w.id}" ${ro ? 'tabindex="-1"' : ''}>
+              <button class="ms-wg-zeile ${w.turnier ? 'turnier' : ''}" data-wg="${w.id}" ${ro ? 'tabindex="-1"' : ''}>
                 <span class="ms-mitte">
-                  <b>${esc([vName(w.verein_id), w.team].filter(Boolean).join(' – ') || '–')}</b>
+                  <b>${w.turnier ? '🏆 ' : ''}${esc([vName(w.verein_id), w.team].filter(Boolean).join(' – ') || '–')}</b>
                   <small>${[w.ohne_meisterschaft ? 'ohne Meisterschaft' : w.liga && esc(w.liga), w.spiele != null && `ca. ${w.spiele} Spiele`].filter(Boolean).join(' · ')}</small>
                   ${w.notiz ? `<small class="ms-wg-notiz">${esc(w.notiz)}</small>` : ''}
                 </span>
@@ -312,8 +323,9 @@ export async function mount(root) {
       <div class="ms-pick p-verein"><span class="lbl">Verein</span><input autocomplete="off" placeholder="Verein suchen …"><div class="ms-vor" hidden></div></div>
       <div class="ms-reihe">
         <label>Team / Stufe<input name="team" placeholder="z.B. Junioren C" autocomplete="off"></label>
-        <label>Liga<input name="liga" placeholder="z.B. Regional" autocomplete="off"></label>
+        <label>Liga / Turnier<input name="liga" placeholder="z.B. Regional, Prague Games" autocomplete="off"></label>
       </div>
+      ${hatWgTurnier() ? '<label class="ms-check"><input type="checkbox" name="turnier"> 🏆 Turnier (z.B. Prague Games) – Name bei «Liga / Turnier»</label>' : ''}
       <label class="ms-check"><input type="checkbox" name="ohne_meisterschaft"> Ohne Meisterschaft (nur Trainings/Turniere)</label>
       <label class="schmal">Anzahl Spiele (ca.)<input type="number" name="spiele" min="0" max="999" inputmode="numeric"></label>
       <label>Notiz<textarea name="notiz" rows="3" placeholder="z.B. auf dem Feld, 5 Tore · Wechsel ins Tor im Winter"></textarea></label>
@@ -330,6 +342,7 @@ export async function mount(root) {
     f.saison.value = w?.saison || ''; pV.set(VM.get(w?.verein_id));
     f.team.value = w?.team || ''; f.liga.value = w?.liga || '';
     f.ohne_meisterschaft.checked = !!w?.ohne_meisterschaft;
+    if (f.turnier) f.turnier.checked = !!w?.turnier;
     f.spiele.value = w?.spiele ?? ''; f.notiz.value = w?.notiz || '';
     const ligaSicht = () => { f.liga.disabled = f.ohne_meisterschaft.checked; };
     f.ohne_meisterschaft.onchange = ligaSicht; ligaSicht();
@@ -348,6 +361,7 @@ export async function mount(root) {
         saison: f.saison.value.trim(),
         team: f.team.value.trim() || null,
         ohne_meisterschaft: f.ohne_meisterschaft.checked,
+        ...(f.turnier ? { turnier: f.turnier.checked } : {}),
         liga: f.ohne_meisterschaft.checked ? null : f.liga.value.trim() || null,
         spiele: f.spiele.value === '' ? null : Math.trunc(+f.spiele.value),
         notiz: f.notiz.value.trim() || null,
