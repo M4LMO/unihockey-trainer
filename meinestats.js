@@ -87,11 +87,8 @@ export async function mount(root) {
     const WG = await ladeAlle('ms_werdegang').catch(e => { if (/PGRST205|42P01|does not exist/i.test(`${e?.code} ${e?.message}`)) return null; throw e; });
     Object.assign(D, { V: V.sort((a, b) => a.name.localeCompare(b.name, 'de')), H, A, SP, TB, WG: WG || [], wgFehlt: !WG });
     VM = new Map(D.V.map(v => [v.id, v])); HM = new Map(H.map(h => [h.id, h])); AM = new Map(A.map(a => [a.id, a]));
-    // Datalists (Saisons, Kategorien, Ligen, Teile, Vereine)
+    // Datalist nur noch für die Vereine in der Rangtabellen-Bearbeitung (sonst eigene Dropdowns)
     const dl = (id, werte) => { const el = root.querySelector(`#${id}`); if (el) el.innerHTML = [...new Set(werte.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')).map(w => `<option value="${esc(w)}">`).join(''); };
-    dl('ms-dl-saison', A.map(a => a.saison));
-    dl('ms-dl-kat', ['Meisterschaft', 'Prague Games', 'Turnier', ...A.map(a => a.kategorie)]);
-    dl('ms-dl-liga', SP.map(s => s.liga));
     dl('ms-dl-verein', D.V.map(v => v.name));
   }
 
@@ -303,13 +300,12 @@ export async function mount(root) {
     const f = dlg.querySelector('form');
     f.innerHTML = `
       <div><h2>🧒 ${w ? 'Eintrag ändern' : '＋ Junioren-Eintrag'}</h2><p class="muted klein">Ungefähre Angaben genügen – alles ausser Saison ist freiwillig.</p></div>
-      <label>Saison<input name="saison" list="ms-dl-saison" placeholder="z.B. 2016/17" autocomplete="off"></label>
+      <label>Saison<input name="saison" placeholder="z.B. 2016/17" autocomplete="off"></label>
       <div class="ms-pick p-verein"><span class="lbl">Verein</span><input autocomplete="off" placeholder="Verein suchen …"><div class="ms-vor" hidden></div></div>
       <div class="ms-reihe">
-        <label>Team / Stufe<input name="team" list="ms-dl-wgteam" placeholder="z.B. Junioren C" autocomplete="off"></label>
+        <label>Team / Stufe<input name="team" placeholder="z.B. Junioren C" autocomplete="off"></label>
         <label>Liga<input name="liga" placeholder="z.B. Regional" autocomplete="off"></label>
       </div>
-      <datalist id="ms-dl-wgteam">${[...new Set(D.WG.map(x => x.team).filter(Boolean))].map(t => `<option value="${esc(t)}">`).join('')}</datalist>
       <label class="ms-check"><input type="checkbox" name="ohne_meisterschaft"> Ohne Meisterschaft (nur Trainings/Turniere)</label>
       <label class="schmal">Anzahl Spiele (ca.)<input type="number" name="spiele" min="0" max="999" inputmode="numeric"></label>
       <label>Notiz<textarea name="notiz" rows="3" placeholder="z.B. auf dem Feld, 5 Tore · Wechsel ins Tor im Winter"></textarea></label>
@@ -320,6 +316,9 @@ export async function mount(root) {
         <button class="btn primary">Speichern</button>
       </div>`;
     const pV = vereinPicker(f.querySelector('.p-verein'), () => [...new Set(D.WG.map(x => x.verein_id).filter(Boolean))]);
+    textAuswahl(f.saison, () => [...D.WG.map(x => x.saison), ...D.A.map(x => x.saison)]);
+    textAuswahl(f.team, () => D.WG.map(x => x.team));
+    textAuswahl(f.liga, () => D.WG.map(x => x.liga));
     f.saison.value = w?.saison || ''; pV.set(VM.get(w?.verein_id));
     f.team.value = w?.team || ''; f.liga.value = w?.liga || '';
     f.ohne_meisterschaft.checked = !!w?.ohne_meisterschaft;
@@ -778,17 +777,26 @@ export async function mount(root) {
   // ==============================================================
   //  AUSWAHL-FELD (Verein / Halle) mit Vorschlägen
   // ==============================================================
-  // leer: Vorschläge, solange noch nichts getippt ist (z.B. Gegner dieser Saison)
-  function machePicker(wrap, { suche, text, sub = () => '', leer = () => [] }) {
+  // Dropdown wie bei Heim/Gast: antippen → ganze Liste (scrollbar), passende Vorschläge zuerst;
+  // tippen → Treffer. leer = Vorschläge oben, alle = komplette Liste darunter
+  function machePicker(wrap, { suche, text, sub = () => '', leer = () => [], alle = () => [] }) {
     const inp = wrap.querySelector('input'), vor = wrap.querySelector('.ms-vor');
     let liste = [];
     const zeige = () => {
       const q = inp.value.trim();
-      liste = q ? suche(q) : leer().slice(0, 8);
+      const exaktWert = q && alle().some(t => M.norm(text(t)) === M.norm(q));
+      let trenner = -1;
+      if (!q || exaktWert) {   // nichts getippt oder schon ein bekannter Wert → alles zeigen
+        const v = leer(), oben = new Set(v.map(t => M.norm(text(t)))), rest = alle().filter(t => !oben.has(M.norm(text(t))));
+        liste = [...v, ...rest];
+        if (v.length && rest.length) trenner = v.length;
+      } else liste = suche(q);
       const exakt = liste.some(t => M.norm(text(t)) === M.norm(q));
-      vor.innerHTML = liste.map((t, i) => `<button type="button" data-i="${i}">${esc(text(t))}${sub(t, q)}</button>`).join('')
+      vor.innerHTML = liste.map((t, i) => `${i === trenner ? '<span class="ms-vor-kopf">Alle</span>' : ''}<button type="button" data-i="${i}" class="${q && M.norm(text(t)) === M.norm(q) ? 'akt' : ''}">${esc(text(t))}${sub(t, q)}</button>`).join('')
         + (q && !exakt ? `<button type="button" class="neu" data-neu>＋ «${esc(q)}» neu</button>` : '');
       vor.hidden = !vor.innerHTML || document.activeElement !== inp;
+      const akt = vor.querySelector('.akt');
+      vor.scrollTop = akt ? akt.offsetTop - 40 : 0;
     };
     inp.addEventListener('input', () => { wrap.dataset.id = ''; zeige(); });
     inp.addEventListener('focus', zeige);
@@ -796,7 +804,10 @@ export async function mount(root) {
     vor.addEventListener('mousedown', e => e.preventDefault());
     vor.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
-      if (b.dataset.i != null) { const t = liste[+b.dataset.i]; wrap.dataset.id = t.id; inp.value = text(t); }
+      if (b.dataset.i != null) {
+        const t = liste[+b.dataset.i]; wrap.dataset.id = t.id; inp.value = text(t);
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       vor.hidden = true;
     });
     return {
@@ -805,14 +816,34 @@ export async function mount(root) {
       id: () => wrap.dataset.id || null,
     };
   }
+  // Gleiches Dropdown für ein normales Textfeld (Liga, Kategorie, Saison, Team …)
+  // werte: () => Liste bisheriger Werte; vorne: () => Werte, die zuoberst stehen sollen
+  function textAuswahl(inp, werte, vorne = () => []) {
+    if (!inp) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'ms-pick';
+    inp.before(wrap);
+    wrap.append(inp);
+    wrap.insertAdjacentHTML('beforeend', '<div class="ms-vor" hidden></div>');
+    const liste = () => [...new Set(werte().filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de', { numeric: true })).map(w => ({ id: w, w }));
+    machePicker(wrap, {
+      text: x => x.w,
+      alle: liste,
+      leer: () => { const l = liste(); return [...new Set(vorne().filter(Boolean))].map(w => l.find(x => x.w === w)).filter(Boolean); },
+      suche: q => { const n = M.norm(q); return liste().filter(x => M.norm(x.w).includes(n)).sort((a, b) => M.norm(b.w).startsWith(n) - M.norm(a.w).startsWith(n)); },
+    });
+  }
   function aliasSub(v, q) {
     return v.land ? ` <small>${esc(v.land)}</small>` : '';
   }
   function vereinPicker(wrap, leerIds) {
-    return machePicker(wrap, { suche: q => M.sucheVereine(D.V, q), text: v => v.name, sub: aliasSub, leer: () => (leerIds?.() || []).map(id => VM.get(id)).filter(Boolean) });
+    return machePicker(wrap, { suche: q => M.sucheVereine(D.V, q, 500), text: v => v.name, sub: aliasSub, alle: () => D.V,
+      leer: () => (leerIds?.() || []).map(id => VM.get(id)).filter(Boolean) });
   }
   function hallenPicker(wrap, leerIds) {
-    return machePicker(wrap, { suche: q => M.sucheHallen(D.H, q), text: M.halleText, leer: () => (leerIds?.() || []).map(id => HM.get(id)).filter(Boolean) });
+    return machePicker(wrap, { suche: q => M.sucheHallen(D.H, q, 500), text: M.halleText,
+      alle: () => [...D.H].sort((a, b) => M.halleText(a).localeCompare(M.halleText(b), 'de')),
+      leer: () => (leerIds?.() || []).map(id => HM.get(id)).filter(Boolean) });
   }
   // Häufigste Werte zuerst – zuerst aus diesem Block, dann aus den anderen Saisons desselben Teams
   function vorschlaege(a, felder) {
@@ -861,8 +892,7 @@ export async function mount(root) {
     const ichOpt = Object.entries(M.ICH[b] || {});
     f.innerHTML = `
       <div><h2>${sp ? 'Spiel ändern' : '＋ Spiel'}</h2><p class="muted klein">${M.BEREICHE[b].icon} ${esc(a.saison)} · ${esc(abschnittTitel(a))}</p></div>
-      ${teile.length || a.kategorie && a.kategorie !== 'Meisterschaft' ? `<label>Teil (optional, z.B. Turnier)<input name="teil" list="ms-dl-teil" autocomplete="off" placeholder="z.B. La Saga Tenero">
-        <datalist id="ms-dl-teil">${teile.map(t => `<option value="${esc(t)}">`).join('')}</datalist></label>` : ''}
+      ${teile.length || a.kategorie && a.kategorie !== 'Meisterschaft' ? `<label>Teil (optional, z.B. Turnier)<input name="teil" autocomplete="off" placeholder="z.B. La Saga Tenero"></label>` : ''}
       <div class="ms-reihe">
         <label>Datum<input type="date" name="datum"></label>
         <label class="schmal">Zeit<input type="time" name="zeit"></label>
@@ -872,7 +902,7 @@ export async function mount(root) {
       ${fan ? `
         <div class="ms-pick p-heim"><span class="lbl">Heim</span><input autocomplete="off" placeholder="Verein suchen …"><div class="ms-vor" hidden></div></div>
         <div class="ms-pick p-gast"><span class="lbl">Gast</span><input autocomplete="off" placeholder="Verein suchen …"><div class="ms-vor" hidden></div></div>
-        <label>Liga / Wettbewerb<input name="liga" list="ms-dl-liga" autocomplete="off" placeholder="z.B. M L-UPL, W Cup"></label>`
+        <label>Liga / Wettbewerb<input name="liga" autocomplete="off" placeholder="z.B. M L-UPL, W Cup"></label>`
       : `<div class="ms-reihe">
           <div class="ms-pick p-gegner"><span class="lbl">Gegner</span><input autocomplete="off" placeholder="Verein suchen …"><div class="ms-vor" hidden></div></div>
           <label class="schmal">Zusatz<input name="gegner_zusatz" placeholder="z.B. U17" autocomplete="off"></label>
@@ -897,6 +927,9 @@ export async function mount(root) {
     const pG = !fan ? vereinPicker(f.querySelector('.p-gegner'), () => vorschlaege(a, ['gegner_id'])) : null;
     const pHeim = fan ? vereinPicker(f.querySelector('.p-heim'), () => vorschlaege(a, ['heim_id', 'gast_id'])) : null;
     const pGast = fan ? vereinPicker(f.querySelector('.p-gast'), () => vorschlaege(a, ['heim_id', 'gast_id'])) : null;
+    textAuswahl(f.teil, () => teile);
+    // Liga: bisherige Ligen, die von diesem Block zuerst
+    textAuswahl(f.liga, () => D.SP.map(x => x.liga), () => M.zaehle(spieleVon(a.id), x => x.liga).map(x => x.key));
     const s = sp || {
       teil: vorher?.teil || '', spielart: vorher?.spielart || (fan ? 'meisterschaft' : 'meisterschaft'),
       liga: vorher?.liga || '', ich: b === 'trainer' ? 'dabei' : b === 'spieler' ? 'tor' : null,
@@ -971,14 +1004,13 @@ export async function mount(root) {
       <h2>${a ? 'Saison/Team ändern' : '＋ Saison / Team'}</h2>
       <label>Bereich<select name="bereich">${Object.entries(M.BEREICHE).map(([k, x]) => `<option value="${k}" ${k === b0 ? 'selected' : ''}>${x.icon} ${x.lang}</option>`).join('')}</select></label>
       <div class="ms-reihe">
-        <label>Saison / Jahr<input name="saison" list="ms-dl-saison" placeholder="z.B. 2026/27 oder 2026" autocomplete="off" required></label>
-        <label class="n-fan">Kategorie<input name="kategorie" list="ms-dl-kat" placeholder="Meisterschaft" autocomplete="off"></label>
+        <label>Saison / Jahr<input name="saison" placeholder="z.B. 2026/27 oder 2026" autocomplete="off" required></label>
+        <label class="n-fan">Kategorie<input name="kategorie" placeholder="Meisterschaft" autocomplete="off"></label>
       </div>
       <div class="ms-pick p-verein n-fan"><span class="lbl">Mein Verein</span><input autocomplete="off" placeholder="z.B. UHC Lions Konolfingen"><div class="ms-vor" hidden></div></div>
       <div class="ms-reihe n-fan">
-        <label>Team / Liga<input name="team" list="ms-dl-team" placeholder="z.B. Herren GF 3. Liga" autocomplete="off"></label>
-        <label>Gruppe<input name="gruppe" list="ms-dl-gruppe" placeholder="z.B. Gruppe 1" autocomplete="off"></label>
-        <datalist id="ms-dl-team"></datalist><datalist id="ms-dl-gruppe"></datalist>
+        <label>Team / Liga<input name="team" placeholder="z.B. Herren GF 3. Liga" autocomplete="off"></label>
+        <label>Gruppe<input name="gruppe" placeholder="z.B. Gruppe 1" autocomplete="off"></label>
       </div>
       <label class="n-fan">Staff (eine Zeile pro Funktion)<textarea name="staff" rows="3" placeholder="HC: …&#10;AC: …"></textarea></label>
       <label>Notiz<textarea name="notiz" rows="3" placeholder="z.B. Zusammenfassung, «Keine Tabelle ersichtlich»"></textarea></label>
@@ -989,11 +1021,13 @@ export async function mount(root) {
         <button class="btn primary">Speichern</button>
       </div>`;
     const pV = vereinPicker(f.querySelector('.p-verein'), () => [...new Set(aktivA().filter(x => x.bereich === f.bereich.value && x.verein_id).map(x => x.verein_id))]);
-    // Team- und Gruppen-Vorschläge passend zum gewählten Verein (und Team)
-    const vorschlagListe = (id, werte) => { f.querySelector(`#${id}`).innerHTML = [...new Set(werte.filter(Boolean))].sort((x, y) => x.localeCompare(y, 'de')).map(w => `<option value="${esc(w)}">`).join(''); };
+    // Dropdowns; Team und Gruppe: Werte des gewählten Vereins (und Teams) zuoberst
     const meinVerein = () => pV.id() || M.findeVerein(D.V, pV.text())?.id || null;
-    f.team.addEventListener('focus', () => vorschlagListe('ms-dl-team', aktivA().filter(x => !meinVerein() || x.verein_id === meinVerein()).map(x => x.team)));
-    f.gruppe.addEventListener('focus', () => vorschlagListe('ms-dl-gruppe', aktivA().filter(x => (!meinVerein() || x.verein_id === meinVerein()) && (!f.team.value.trim() || x.team === f.team.value.trim())).map(x => x.gruppe)));
+    textAuswahl(f.saison, () => D.A.map(x => x.saison));
+    textAuswahl(f.kategorie, () => ['Meisterschaft', 'Prague Games', ...D.A.map(x => x.kategorie)]);
+    textAuswahl(f.team, () => D.A.map(x => x.team), () => aktivA().filter(x => x.verein_id === meinVerein()).map(x => x.team));
+    textAuswahl(f.gruppe, () => D.A.map(x => x.gruppe),
+      () => aktivA().filter(x => x.verein_id === meinVerein() && (!f.team.value.trim() || x.team === f.team.value.trim())).map(x => x.gruppe));
     f.saison.value = a?.saison || '';
     f.kategorie.value = a?.kategorie || (a ? '' : 'Meisterschaft');
     pV.set(VM.get(a?.verein_id));
@@ -1078,6 +1112,7 @@ export async function mount(root) {
         <button class="btn primary">Speichern</button>
       </div>`;
     const tbody = f.querySelector('tbody');
+    textAuswahl(f.titel, () => D.TB.filter(z => z.abschnitt_id === a.id).map(z => z.titel));
     // Radio-Gruppe über alle Zeilen (nur eine «mein Team»)
     tbody.addEventListener('change', e => { if (e.target.name === 'eigenes') tbody.querySelectorAll('[name=eigenes]').forEach(r => { if (r !== e.target) r.checked = false; }); });
     f.querySelector('.z-neu').onclick = () => {
@@ -1147,6 +1182,7 @@ export async function mount(root) {
         <button class="btn primary">Speichern</button>
       </div>`;
     f.name.value = v?.name || ''; f.land.value = v?.land || '';
+    textAuswahl(f.land, () => D.V.map(x => x.land));
     const fehler = msg => { const el = f.querySelector('.form-error'); el.textContent = msg; el.hidden = !msg; };
     f.querySelector('.btn-abbr').onclick = () => dlg.close();
     const pZ = v ? machePicker(f.querySelector('.p-ziel'), { suche: q => M.sucheVereine(D.V.filter(x => x.id !== v.id), q), text: x => x.name, sub: aliasSub }) : null;
@@ -1200,6 +1236,8 @@ export async function mount(root) {
         <button class="btn primary">Speichern</button>
       </div>`;
     f.ort.value = h?.ort || ''; f.name.value = h?.name || '';
+    textAuswahl(f.ort, () => D.H.map(x => x.ort));
+    textAuswahl(f.name, () => D.H.map(x => x.name), () => D.H.filter(x => x.ort === f.ort.value.trim()).map(x => x.name));
     const fehler = msg => { const el = f.querySelector('.form-error'); el.textContent = msg; el.hidden = !msg; };
     f.querySelector('.btn-abbr').onclick = () => dlg.close();
     const pZ = h ? machePicker(f.querySelector('.p-ziel'), { suche: q => M.sucheHallen(D.H.filter(x => x.id !== h.id), q), text: M.halleText }) : null;
@@ -1257,8 +1295,7 @@ export async function mount(root) {
 
 function dialogeHTML() {
   return `
-  <datalist id="ms-dl-saison"></datalist><datalist id="ms-dl-kat"></datalist>
-  <datalist id="ms-dl-liga"></datalist><datalist id="ms-dl-verein"></datalist>
+  <datalist id="ms-dl-verein"></datalist>
   <dialog class="dlg ms-dlg ms-dlg-spiel"><form class="dlg-body ms-form" novalidate></form></dialog>
   <dialog class="dlg ms-dlg ms-dlg-abschnitt"><form class="dlg-body ms-form" novalidate></form></dialog>
   <dialog class="dlg ms-dlg ms-dlg-tabelle"><form class="dlg-body ms-form" novalidate></form></dialog>

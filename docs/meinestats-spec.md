@@ -25,6 +25,7 @@ Marcs persönliche Statistik (bisher OneNote): eigene Spiele **als Trainer**, **
 - Resultatfarben: Sieg grün, Niederlage rot, Unentschieden orange; n.V./n.P. zählen als Sieg/Niederlage (separat ausgewiesen).
 
 ## Eingabe-Hilfen
+- **Ein Dropdown-Typ für alle Felder** (wie Heim/Gast, `machePicker` / `textAuswahl`): antippen → ganze Liste scrollbar (passende Vorschläge oben, Trenner «Alle»), tippen → Treffer, neuer Wert mit «＋ … neu». Gilt für Verein/Halle sowie Liga, Teil, Saison, Kategorie, Team, Gruppe, Tabellen-Titel, Land, Ort, Hallenname, Werdegang (Saison, Team, Liga). Nur die Vereine im Rangtabellen-Editor nutzen noch eine Datalist.
 - Spiel-Dialog: Feld Gegner/Heim/Gast bzw. Halle antippen ohne zu tippen → Vorschläge aus diesem Block (häufigste zuerst), dann aus anderen Saisons desselben Teams.
 - Saison/Team-Dialog: «Mein Verein» schlägt bisherige eigene Vereine vor; Team und Gruppe schlagen Werte vor, die zum gewählten Verein (und Team) passen.
 
