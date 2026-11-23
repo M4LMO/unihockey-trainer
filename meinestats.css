@@ -232,3 +232,8 @@
 .ms-g-teile .n { color: var(--ms-n); font-weight: 700; }
 .ms-fusion { display: grid; gap: 8px; background: var(--bg); border-radius: 10px; padding: 10px; }
 .ms-vw .vw-name small { display: block; }
+
+/* Werdegang: Turniere */
+.ms-wg-turniere { margin: 0; color: #92400e; font-weight: 600; }
+.ms-wg-zeile.turnier b { color: #92400e; }
+.ms-wg-anz { white-space: normal; line-height: 1.25; padding: 2px 7px; border-radius: 8px; max-width: 100%; }
