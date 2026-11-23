@@ -210,3 +210,8 @@
 .ms-wg-saison { font-size: .8rem; font-weight: 700; color: var(--team); }
 .ms-wg-notiz { font-style: italic; color: #334155 !important; white-space: pre-wrap; }
 .ms-form textarea:disabled, .ms-form input:disabled { background: var(--bg); color: var(--muted); }
+
+/* Dropdown (wie Heim/Gast) – Trenner «Alle», aktueller Wert */
+.ms-vor-kopf { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--bg); padding: 4px 12px; }
+.ms-vor button.akt { background: #fee2e2; font-weight: 600; }
+.ms-pick > label, label > .ms-pick { display: block; }
