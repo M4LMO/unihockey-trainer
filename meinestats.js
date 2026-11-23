@@ -67,6 +67,7 @@ export async function mount(root) {
     kategorie: '',
     suche: '',
     sort: 'anzahl',
+    fusion: true,    // Gegner-Bilanz: fusionierte Vereine unter dem heutigen Verein
     ho: 'halle',     // Hallen-Liste: 'halle' | 'ort'
     hSuche: '',
   };
@@ -101,9 +102,16 @@ export async function mount(root) {
   const bereichVon = sp => AM.get(sp.abschnitt_id)?.bereich;
   const vName = id => VM.get(id)?.name ?? '';
   const vLand = id => { const l = VM.get(id)?.land; return l ? ` <span class="ms-land">${esc(l)}</span>` : ''; };
-  const gegnerHTML = sp => sp.gegner_id ? `${esc(vName(sp.gegner_id))}${sp.gegner_zusatz ? ` ${esc(sp.gegner_zusatz)}` : ''}${vLand(sp.gegner_id)}` : '<span class="muted">–</span>';
+  // Spalte nachfolger_id vorhanden? (SQL 18) – sonst Fusions-Felder ausblenden
+  const hatFusion = () => !D.V.length || 'nachfolger_id' in D.V[0];
+  // «ab 2025/26» → letzte Saison vor der Fusion «2024/25»
+  const bisSaison = ab => { const k = M.saisonSchluessel(ab); return k ? M.saisonName(String(k - 1)) : ab; };
+  // Fusionen: damaliger Name bleibt, dazu «→ heute …»
+  const heute = id => M.heutigerVerein(VM, id);
+  const heuteHinweis = id => { const h = id && heute(id); return h && h !== id ? ` <span class="ms-heute">→ heute ${esc(vName(h))}</span>` : ''; };
+  const gegnerHTML = sp => sp.gegner_id ? `${esc(vName(sp.gegner_id))}${sp.gegner_zusatz ? ` ${esc(sp.gegner_zusatz)}` : ''}${vLand(sp.gegner_id)}${heuteHinweis(sp.gegner_id)}` : '<span class="muted">–</span>';
   const fanHTML = sp => (sp.heim_id || sp.gast_id)
-    ? `${sp.heim_id ? esc(vName(sp.heim_id)) + vLand(sp.heim_id) : '?'} – ${sp.gast_id ? esc(vName(sp.gast_id)) + vLand(sp.gast_id) : '?'}`
+    ? `${sp.heim_id ? esc(vName(sp.heim_id)) + vLand(sp.heim_id) + heuteHinweis(sp.heim_id) : '?'} – ${sp.gast_id ? esc(vName(sp.gast_id)) + vLand(sp.gast_id) + heuteHinweis(sp.gast_id) : '?'}`
     : '<span class="muted">Teams unbekannt</span>';
   const abschnittTitel = a => a.bereich === 'fan' ? `Fan-Spiele ${a.saison}` : [vName(a.verein_id), a.team].filter(Boolean).join(' – ') || 'Ohne Team';
 
@@ -636,6 +644,7 @@ export async function mount(root) {
               <option value="name" ${F.sort === 'name' ? 'selected' : ''}>A–Z</option>
             </select>
           </div>
+          ${D.V.some(v => v.nachfolger_id) ? `<label class="ms-check klein"><input type="checkbox" class="ms-g-fusion" ${F.fusion ? 'checked' : ''}> Fusionen zusammenfassen (unter dem heutigen Verein)</label>` : ''}
           <ul class="ms-gegner"></ul>
         </section>`;
     }
@@ -712,10 +721,11 @@ export async function mount(root) {
     // Gegner-Liste (mit Suche, ohne die ganze Seite neu zu zeichnen)
     const gl = aw.querySelector('.ms-gegner:not(.ms-hl)');
     if (gl) {
-      const alleG = M.gegnerBilanz(eigene);
       const zeichneG = () => {
+        const alleG = M.gegnerBilanz(eigene, F.fusion ? heute : id => id);
         const q = M.norm(F.suche);
-        let l = alleG.filter(g => !q || M.norm(vName(g.id)).includes(q));
+        // Suche findet auch frühere Namen (z.B. «Eggiwil» → Unihockey Emme)
+        let l = alleG.filter(g => !q || M.norm([vName(g.id), ...g.teile.map(t => vName(t.id))].join(' ')).includes(q));
         const pq = g => g.sp ? (g.s - g.n) / g.sp : 0;
         l.sort(F.sort === 'name' ? (x, y) => vName(x.id).localeCompare(vName(y.id), 'de')
           : F.sort === 'quote' ? (x, y) => pq(y) - pq(x) || y.sp - x.sp
@@ -724,14 +734,17 @@ export async function mount(root) {
         aw.querySelector('.ms-g-anz').textContent = plural(l.length, 'Gegner', 'Gegner');
         gl.innerHTML = l.map(g => `
           <li><details><summary>
-            <span class="ms-g-name">${esc(vName(g.id))}${vLand(g.id)}</span>
+            <span class="ms-g-name">${esc(vName(g.id))}${vLand(g.id)}${g.teile.length ? ' <span class="ms-heute">fusioniert</span>' : ''}</span>
             <span class="ms-g-zahlen"><b>${g.anzahl}</b> Sp · <span class="s">${g.s}</span>-<span class="u">${g.u}</span>-<span class="n">${g.n}</span> · ${g.t}:${g.gt}</span>
-          </summary><ul class="ms-spiele">${neuesteZuerst(g.spiele).map(s => spielZeile(s, { mitBereich: true })).join('')}</ul></details></li>`).join('')
+          </summary>${g.teile.length ? `<ul class="ms-g-teile">${[...g.teile].sort((x, y) => (x.id === g.id) - (y.id === g.id) || y.anzahl - x.anzahl).map(t => `
+            <li>${t.id === g.id ? 'als' : 'davon als'} <b>${esc(vName(t.id))}</b>${VM.get(t.id)?.fusion_ab && t.id !== g.id ? ` <small>(bis ${esc(bisSaison(VM.get(t.id).fusion_ab))})</small>` : ''}:
+              ${t.anzahl} Sp · <span class="s">${t.s}</span>-<span class="u">${t.u}</span>-<span class="n">${t.n}</span> · ${t.t}:${t.gt}</li>`).join('')}</ul>` : ''}<ul class="ms-spiele">${neuesteZuerst(g.spiele).map(s => spielZeile(s, { mitBereich: true })).join('')}</ul></details></li>`).join('')
           || '<li class="muted klein">Kein Gegner gefunden.</li>';
       };
       zeichneG();
       aw.querySelector('.ms-g-suche').addEventListener('input', e => { F.suche = e.target.value; zeichneG(); });
       aw.querySelector('.ms-g-sort').addEventListener('change', e => { F.sort = e.target.value; zeichneG(); });
+      aw.querySelector('.ms-g-fusion')?.addEventListener('change', e => { F.fusion = e.target.checked; zeichneG(); });
       gl.addEventListener('click', e => { const b = e.target.closest('[data-sp]'); if (b) oeffneSpiel(D.SP.find(s => s.id === b.dataset.sp)); });
     }
   }
@@ -748,6 +761,15 @@ export async function mount(root) {
   // ==============================================================
   //  VERWALTUNG (Vereine, Hallen, Papierkorb)
   // ==============================================================
+  // «→ Unihockey Emme (ab 2025/26)» bzw. «entstanden aus …»
+  function fusionText(v) {
+    const teile = [];
+    if (v.nachfolger_id && VM.get(v.nachfolger_id)) teile.push(`→ fusioniert in ${esc(vName(v.nachfolger_id))}${v.fusion_ab ? ` (ab ${esc(v.fusion_ab)})` : ''}`);
+    const aus = D.V.filter(x => x.nachfolger_id === v.id).map(x => x.name);
+    if (aus.length) teile.push(`entstanden aus ${esc(aus.join(', '))}`);
+    return teile.map(t => `<small class="muted">${t}</small>`).join('');
+  }
+
   function tabVerwaltung(ziel) {
     const nutzV = id => D.SP.filter(s => s.gegner_id === id || s.heim_id === id || s.gast_id === id).length
       + D.TB.filter(z => z.verein_id === id).length + D.A.filter(a => a.verein_id === id).length + D.WG.filter(w => w.verein_id === id).length;
@@ -765,7 +787,7 @@ export async function mount(root) {
         <h3 class="gruppe">🏒 Vereine & Teams <span>${D.V.length}</span>${!ro ? '<button class="btn ghost small ms-neu-v">＋ Verein</button>' : ''}</h3>
         <ul class="vw-liste ms-vw">${vereine.map(v => `
           <li><button class="ms-vw-zeile" data-v="${v.id}" ${ro ? 'disabled' : ''}>
-            <span class="vw-name">${esc(v.name)}${vLand(v.id)}</span>
+            <span class="vw-name">${esc(v.name)}${vLand(v.id)}${fusionText(v)}</span>
             <span class="badge">${nutzV(v.id)}</span>
           </button></li>`).join('') || '<li class="muted">Keine.</li>'}</ul>
       </section>
@@ -1216,6 +1238,11 @@ export async function mount(root) {
       <h2>${v ? 'Verein ändern' : '＋ Verein'}</h2>
       <label>Name<input name="name" required autocomplete="off"></label>
       <label>Land (leer = Schweiz)<input name="land" placeholder="z.B. CZE, FIN, SWE" maxlength="10" autocomplete="off"></label>
+      ${hatFusion() ? `<div class="ms-fusion">
+        <div class="ms-pick p-nachfolger"><span class="lbl">Fusioniert in (heutiger Verein, sonst leer)</span><input autocomplete="off" placeholder="z.B. Unihockey Emme"><div class="ms-vor" hidden></div></div>
+        <label>ab Saison<input name="fusion_ab" placeholder="z.B. 2025/26" autocomplete="off"></label>
+        <p class="muted klein">Die Spiele behalten den damaligen Namen. In der Gegner-Bilanz erscheint alles unter dem heutigen Verein.</p>
+      </div>` : ''}
       ${v ? `<details class="ms-merge"><summary>🔗 Mit anderem Verein zusammenführen …</summary>
         <p class="muted klein">Alle Spiele und Tabellen von «${esc(v.name)}» gehen an den gewählten Verein. «${esc(v.name)}» wird danach gelöscht.</p>
         <div class="ms-pick p-ziel"><span class="lbl">Zusammenführen mit</span><input autocomplete="off" placeholder="Verein suchen …"><div class="ms-vor" hidden></div></div>
@@ -1229,6 +1256,8 @@ export async function mount(root) {
       </div>`;
     f.name.value = v?.name || ''; f.land.value = v?.land || '';
     textAuswahl(f.land, () => D.V.map(x => x.land));
+    const pN = hatFusion() ? machePicker(f.querySelector('.p-nachfolger'), { suche: q => M.sucheVereine(D.V.filter(x => x.id !== v?.id), q, 500), text: x => x.name, sub: aliasSub, alle: () => D.V.filter(x => x.id !== v?.id) }) : null;
+    if (pN) { pN.set(VM.get(v?.nachfolger_id)); f.fusion_ab.value = v?.fusion_ab || ''; textAuswahl(f.fusion_ab, () => [...D.V.map(x => x.fusion_ab), ...D.A.map(x => M.saisonName(x.saison))]); }
     const fehler = msg => { const el = f.querySelector('.form-error'); el.textContent = msg; el.hidden = !msg; };
     f.querySelector('.btn-abbr').onclick = () => dlg.close();
     const pZ = v ? machePicker(f.querySelector('.p-ziel'), { suche: q => M.sucheVereine(D.V.filter(x => x.id !== v.id), q), text: x => x.name, sub: aliasSub }) : null;
@@ -1237,7 +1266,9 @@ export async function mount(root) {
       if (!ziel) return fehler('Ziel-Verein aus der Liste wählen.');
       if (!confirm(`«${v.name}» mit «${ziel.name}» zusammenführen?\n\nAlles von «${v.name}» gehört danach zu «${ziel.name}».`)) return;
       try {
-        for (const [tab, spalten] of [['ms_spiele', ['gegner_id', 'heim_id', 'gast_id']], ['ms_tabellen', ['verein_id']], ['ms_abschnitte', ['verein_id']], ...(D.wgFehlt ? [] : [['ms_werdegang', ['verein_id']]])])
+        // Ziel war als Nachfolger von v eingetragen → sonst zeigt es danach auf sich selbst
+        if (ziel.nachfolger_id === v.id) { const r0 = await sb.from('ms_vereine').update({ nachfolger_id: null, fusion_ab: null }).eq('id', ziel.id); if (r0.error) throw r0.error; }
+        for (const [tab, spalten] of [['ms_spiele', ['gegner_id', 'heim_id', 'gast_id']], ['ms_tabellen', ['verein_id']], ['ms_abschnitte', ['verein_id']], ...(D.wgFehlt ? [] : [['ms_werdegang', ['verein_id']]]), ...(hatFusion() ? [['ms_vereine', ['nachfolger_id']]] : [])])
           for (const sp of spalten) { const { error } = await sb.from(tab).update({ [sp]: ziel.id }).eq(sp, v.id); if (error) throw error; }
         const r = await sb.from('ms_vereine').delete().eq('id', v.id); if (r.error) throw r.error;
         dlg.close(); toast(`Zusammengeführt mit ${ziel.name}`, 'ok'); neu();
@@ -1256,6 +1287,13 @@ export async function mount(root) {
       const doppelt = D.V.find(x => x.id !== v?.id && M.norm(name) === M.norm(x.name));
       if (doppelt) return fehler(`«${doppelt.name}» gibt es schon – stattdessen «Zusammenführen» verwenden.`);
       const row = { name, land: f.land.value.trim().toUpperCase() || null };
+      if (pN) {
+        const nId = pN.id() || (pN.text() ? M.findeVerein(D.V, pN.text())?.id : null);
+        if (pN.text() && !nId) return fehler('«Fusioniert in»: bitte einen bestehenden Verein aus der Liste wählen (zuerst anlegen, falls nötig).');
+        if (nId && v && M.heutigerVerein(new Map([...VM, [v.id, { ...v, nachfolger_id: nId }]]), nId) === v.id) return fehler('Das ergäbe einen Kreis – ein Verein kann nicht in sich selbst fusionieren.');
+        row.nachfolger_id = nId || null;
+        row.fusion_ab = nId ? f.fusion_ab.value.trim() || null : null;
+      }
       const { error } = v ? await sb.from('ms_vereine').update(row).eq('id', v.id) : await sb.from('ms_vereine').insert(row);
       if (error) return fehler(fehlerText(error));
       dlg.close(); toast('Gespeichert', 'ok'); neu();
