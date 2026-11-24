@@ -27,10 +27,11 @@ export const ICH = {
 //  meine:  Trainer «dabei», Spieler «im Tor», Fan alle
 //  blatt:  zusätzlich Spieler als Ersatz auf dem Matchblatt
 //  alle:   alle Spiele des Teams (auch ohne mich)
+//  (Reihenfolge = Reihenfolge im Dropdown; Trainer: «dabei» = «gespielt»)
 export const MODI = {
-  meine: 'Nur meine Spiele (Trainer dabei / im Tor)',
-  blatt: 'Inkl. Ersatz auf dem Matchblatt',
   alle: 'Alle Spiele des Teams',
+  blatt: 'Nur Spiele, bei denen ich dabei war',
+  meine: 'Nur Spiele, die ich gespielt habe',
 };
 
 export function zaehlt(spiel, bereich, modus = 'meine') {
