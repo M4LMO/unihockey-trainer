@@ -639,6 +639,7 @@ export async function mount(root) {
         </label>` : ''}
         ${mitEigenen && !vorgabe.modus ? `<label class="sel-wrap ms-modus">Zählen
           <select class="f-modus">${Object.entries(M.MODI).map(([k, t]) => `<option value="${k}" ${F.modus === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+          <small class="muted ms-modus-hilfe">${F.modus === 'blatt' ? '🎽 dabei · 🥅 im Tor oder Ersatz' : F.modus === 'meine' ? '🎽 dabei · 🥅 nur im Tor' : '🎽🥅 auch ohne mich'}</small>
         </label>` : ''}
       </div>
       <div class="ms-arten">${Object.entries(M.SPIELARTEN).filter(([k]) => artN(k)).map(([k, t]) => `<button class="chip ${F.arten.includes(k) ? 'on' : ''}" data-art="${k}">${t} <small>${artN(k)}</small></button>`).join('')}</div>
