@@ -84,6 +84,23 @@ export async function mount(root) {
   let junOffen = false;
   // Hallen-Karte (Analysen): Leaflet-Karte, letzte Ansicht, gewählte Halle, «Punkt setzen»-Modus, laufende Suche
   let karte = null, karteAnsicht = null, karteHalle = null, punktSetzen = null, geoLaeuft = false, geoStopp = false;
+  let platzOffen = true;          // Liste «Noch genau platzieren» aufgeklappt?
+  let geoKette = Promise.resolve();   // automatische Standort-Suche nacheinander (OpenStreetMap: max. 1 Anfrage/Sek.)
+  // Neue oder geänderte Halle automatisch auf der Karte platzieren (im Hintergrund)
+  function autoStandort(h) {
+    if (ro || !hatGeo() || !h?.ort) return;
+    geoKette = geoKette.then(async () => {
+      try {
+        const p = await K.sucheStandort(h);
+        if (!p) { toast(`📍 ${M.halleText(h)}: kein Standort gefunden – unter Analysen → Karte von Hand setzen`); return; }
+        const { error } = await sb.from('ms_hallen').update(p).eq('id', h.id);
+        if (error) return;
+        Object.assign(HM.get(h.id) || h, p);
+        toast(p.geo === 'ort' ? `📍 ${M.halleText(h)}: nur Ortsmitte gefunden – bitte genau platzieren` : `📍 ${M.halleText(h)} auf der Karte platziert`, 'ok');
+      } catch { /* offline – bleibt in der Liste «Noch genau platzieren» */ }
+      await new Promise(r => setTimeout(r, 1100));
+    });
+  }
   function karteWeg() {
     if (!karte) return;
     karteAnsicht = { c: karte.getCenter(), z: karte.getZoom() };
@@ -1039,7 +1056,9 @@ export async function mount(root) {
     const mitOrt = hallen.filter(h => h.lat != null && h.lon != null);
     const ohneOrt = hallen.filter(h => h.lat == null || h.lon == null);
     const nichtGesucht = D.H.filter(h => h.lat == null && !h.geo);
-    const nurOrt = mitOrt.filter(h => h.geo === 'ort').length;
+    // Hallen, die noch genau platziert werden müssen (unabhängig von der Auswahl oben)
+    const spieleInHalle = id => aktiveSpiele().filter(sp => sp.halle_id === id && !sp.abgesagt).length;
+    const zuPlatzieren = D.H.filter(h => h.geo === 'ort' || h.lat == null).sort((a, b) => spieleInHalle(b.id) - spieleInHalle(a.id) || M.halleText(a).localeCompare(M.halleText(b), 'de'));
     aw.innerHTML = `
       <section class="ms-karte">
         <h3 class="gruppe">🗺️ Hallen-Karte <span>${plural(hallen.length, 'Halle', 'Hallen')}</span></h3>
@@ -1050,7 +1069,13 @@ export async function mount(root) {
           ${!ro && nichtGesucht.length ? `<button class="btn primary small ms-geo-los">📍 ${plural(nichtGesucht.length, 'Standort', 'Standorte')} suchen</button>` : ''}
           <p class="klein ms-geo-status" hidden></p>
         </div>` : ''}
-        ${nurOrt ? `<p class="muted klein">${plural(nurOrt, 'Halle sitzt', 'Hallen sitzen')} nur in der Ortsmitte (Halle nicht gefunden) – Halle antippen → «📍 Punkt setzen».</p>` : ''}
+        ${zuPlatzieren.length ? `<details class="ms-platz" ${platzOffen ? 'open' : ''}>
+          <summary>📍 Noch genau platzieren <span class="badge">${zuPlatzieren.length}</span></summary>
+          <p class="muted klein">Diese Hallen sitzen nur in der Ortsmitte (Halle bei OpenStreetMap nicht gefunden) oder haben noch keinen Standort.${!ro ? ' «📍 Setzen» antippen, dann auf der Karte an die richtige Stelle tippen.' : ''}</p>
+          <ul class="ms-platz-liste">${zuPlatzieren.map(h => `<li>
+            <span><b>${esc(M.halleText(h))}</b><small>${h.lat == null ? 'ohne Standort' : 'Ortsmitte'} · ${plural(spieleInHalle(h.id), 'Spiel', 'Spiele')}</small></span>
+            ${!ro ? `<button class="btn ghost small" data-setzen="${h.id}">📍 Setzen</button>` : ''}</li>`).join('')}</ul>
+        </details>` : ''}
         <div class="ms-map-info"></div>
       </section>`;
 
@@ -1078,6 +1103,16 @@ export async function mount(root) {
     };
     info.addEventListener('click', e => { const b = e.target.closest('[data-sp]'); if (b) oeffneSpiel(D.SP.find(sp => sp.id === b.dataset.sp)); });
     zeigeHalle(proHalle.has(karteHalle) ? karteHalle : null);
+    const platz = aw.querySelector('.ms-platz');
+    platz?.addEventListener('toggle', () => { platzOffen = platz.open; });
+    platz?.addEventListener('click', e => {
+      const b = e.target.closest('[data-setzen]'); if (!b) return;
+      punktSetzen = b.dataset.setzen;
+      const map = aw.querySelector('.ms-map');
+      map.classList.add('setzen');
+      map.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast(`${M.halleText(HM.get(punktSetzen))}: jetzt auf der Karte an die richtige Stelle tippen`);
+    });
 
     // Standorte suchen (Admin)
     aw.querySelector('.ms-geo-los')?.addEventListener('click', async e => {
@@ -1197,7 +1232,7 @@ export async function mount(root) {
         <h3 class="gruppe">🏟 Hallen <span>${D.H.length}</span>${!ro ? '<button class="btn ghost small ms-neu-h">＋ Halle</button>' : ''}</h3>
         <ul class="vw-liste ms-vw">${hallen.map(h => `
           <li><button class="ms-vw-zeile" data-h="${h.id}" ${ro ? 'disabled' : ''}>
-            <span class="vw-name">${esc(h.ort)}${h.name ? `<small class="muted">${esc(h.name)}</small>` : ''}</span>
+            <span class="vw-name">${esc(h.ort)}${h.name ? `<small class="muted">${esc(h.name)}</small>` : ''}${hatGeo() && (h.geo === 'ort' || h.lat == null) ? `<small class="ms-geo-mark">📍 ${h.lat == null ? 'ohne Standort' : 'Ortsmitte'}</small>` : ''}</span>
             <span class="badge">${nutzH(h.id)}</span>
           </button></li>`).join('') || '<li class="muted">Keine.</li>'}</ul>
       </section>
@@ -1343,6 +1378,7 @@ export async function mount(root) {
     const { data, error } = await sb.from('ms_hallen').insert({ ort, name }).select().single();
     if (error) throw error;
     D.H.push(data); HM.set(data.id, data);
+    autoStandort(data);
     return data.id;
   }
 
@@ -1749,9 +1785,10 @@ export async function mount(root) {
       if (!row.ort) return fehler('Ort ausfüllen.');
       // Ort/Name geändert → Standort neu suchen lassen (ausser von Hand gesetzt)
       if (h && hatGeo() && h.geo !== 'hand' && (row.ort !== h.ort || row.name !== h.name)) Object.assign(row, { lat: null, lon: null, geo: null });
-      const { error } = h ? await sb.from('ms_hallen').update(row).eq('id', h.id) : await sb.from('ms_hallen').insert(row);
+      const { data, error } = h ? await sb.from('ms_hallen').update(row).eq('id', h.id).select().single() : await sb.from('ms_hallen').insert(row).select().single();
       if (error) return fehler(fehlerText(error));
       dlg.close(); toast('Gespeichert', 'ok'); neu();
+      if (data && hatGeo() && data.lat == null && data.geo !== 'hand') autoStandort(data);   // neu oder Ort/Name geändert
     };
     dlg.showModal();
   }
