@@ -251,3 +251,39 @@
 .ms-map-kopf small { color: var(--muted); font-size: .78rem; }
 .ms-map-kopf .s { color: var(--ms-s); font-weight: 700; } .ms-map-kopf .u { color: var(--ms-u); font-weight: 700; } .ms-map-kopf .n { color: var(--ms-n); font-weight: 700; }
 .ms-tabs button[data-t="verwaltung"] { flex: 0 0 44px; }
+
+/* Analysen: Unter-Tabs, Diagramme, Rekorde, Laufbahn */
+.ms-an-tabs { display: flex; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.ms-an-tabs::-webkit-scrollbar { display: none; }
+.ms-an-tabs button { flex: 1 0 auto; padding: 6px 10px; font-size: .8rem; white-space: nowrap; }
+.ms-g-modus { display: flex; }
+.ms-g-modus button { flex: 1; padding: 6px 4px; font-size: .82rem; }
+.ms-karte .s:not(.ms-res) { color: var(--ms-s); font-weight: 700; } .ms-karte .u:not(.ms-res) { color: var(--ms-u); font-weight: 700; } .ms-karte .n:not(.ms-res) { color: var(--ms-n); font-weight: 700; }
+.ms-chart { width: 100%; height: auto; display: block; }
+.ms-chart text { font-family: inherit; }
+.ms-ch-raster { stroke: var(--line); stroke-width: 1; }
+.ms-ch-y { font-size: 10px; fill: var(--muted); text-anchor: end; }
+.ms-ch-x { font-size: 10px; fill: var(--muted); text-anchor: middle; }
+.ms-ch-wert { font-size: 10px; font-weight: 700; text-anchor: middle; }
+.ms-ch-leg { display: flex; gap: 14px; font-size: .78rem; color: var(--muted); }
+.ms-ch-leg i { display: inline-block; width: 12px; height: 4px; border-radius: 2px; margin-right: 5px; vertical-align: 2px; }
+.ms-vergleich { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ms-vergleich > div { display: grid; gap: 6px; align-content: start; }
+.ms-vergleich > div > div { background: var(--bg); border-radius: 10px; padding: 6px 10px; display: grid; }
+.ms-vergleich b { font-variant-numeric: tabular-nums; }
+.ms-vergleich small { color: var(--muted); font-size: .75rem; font-weight: 600; }
+.ms-rek h4 { margin: 4px 0 0; }
+.ms-serien b small { display: block; font-size: .68rem; color: var(--muted); font-weight: 500; }
+.ms-rangl { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ms-rangl li { display: flex; justify-content: space-between; gap: 8px; font-size: .85rem; padding: 4px 6px; background: var(--bg); border-radius: 8px; }
+.ms-hl-liste { margin: 4px 0 8px; padding-left: 20px; font-size: .85rem; display: grid; gap: 2px; }
+.ms-lb-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ms-lb-liste > li { display: grid; grid-template-columns: 68px 1fr; gap: 8px; align-items: start; }
+.ms-lb-saison { font: inherit; font-size: .8rem; font-weight: 700; color: var(--team); background: none; border: 1px solid transparent; border-radius: 8px; padding: 4px 6px; cursor: pointer; text-align: left; }
+.ms-lb-saison.on { background: var(--team); color: #fff; }
+.ms-lb-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ms-lb { font-size: .75rem; font-weight: 600; padding: 3px 8px; border-radius: 99px; }
+.ms-lb.j { background: #fef3c7; color: #92400e; }
+.ms-lb.s { background: #dcfce7; color: #166534; }
+.ms-lb.t { background: #fee2e2; color: #991b1b; }
+.ms-lb.f { background: #dbeafe; color: #1e40af; }

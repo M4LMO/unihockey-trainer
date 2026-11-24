@@ -18,6 +18,7 @@ import * as K from './meinestats-karte.js';
 const TABS = { uebersicht: 'Übersicht', spiele: 'Spiele', auswertung: 'Auswertung', analysen: 'Analysen', verwaltung: '⚙️' };
 const TABELLEN = ['ms_vereine', 'ms_hallen', 'ms_abschnitte', 'ms_spiele', 'ms_tabellen'];   // ms_werdegang separat (darf fehlen)
 const SPEICHER = 'tt-meinestats';
+const AN = { karte: '🗺️ Karte', goalie: '🥅 Goalie', rekorde: '🏆 Rekorde', wann: '🕒 Wann', laufbahn: '📅 Laufbahn' };
 // Spalten der Rangtabelle (Editor)
 const SPALTEN = [['rang', '#'], ['sp', 'Sp'], ['s', 'S'], ['u', 'U'], ['snv', 'SnV'], ['nnv', 'NnV'], ['n', 'N'], ['tore', 'T'], ['gegentore', 'GT'], ['punkte', 'P']];
 const plural = (n, ein, mehr) => `${n} ${n === 1 ? ein : mehr}`;
@@ -58,7 +59,8 @@ export async function mount(root) {
   const teile = location.hash.replace(/^#\/?/, '').split('/');
   let tab = TABS[teile[1]] ? teile[1] : 'uebersicht';
   const E = getEinst();
-  let bereich = M.BEREICHE[E.bereich] ? E.bereich : 'trainer';          // Tab Spiele
+  let bereich = M.BEREICHE[E.bereich] ? E.bereich : 'trainer';
+  let anTab = AN[E.anTab] ? E.anTab : 'karte';   // Unter-Tab in «Analysen»          // Tab Spiele
   const F = {                                                              // Tab Auswertung
     bereich: E.aBereich || 'alle',
     modus: M.MODI[E.modus] ? E.modus : 'meine',
@@ -68,7 +70,9 @@ export async function mount(root) {
     kategorie: '',
     suche: '',
     sort: 'anzahl',
-    fusion: true,    // Gegner-Bilanz: fusionierte Vereine unter dem heutigen Verein
+    fusion: true,
+    gModus: E.gModus === 'saison' ? 'saison' : 'ich',   // Goalie: nur meine Spiele / ganze Saison
+    rueckblick: '',    // Gegner-Bilanz: fusionierte Vereine unter dem heutigen Verein
     ho: 'halle',     // Hallen-Liste: 'halle' | 'ort'
     hSuche: '',
   };
@@ -561,8 +565,10 @@ export async function mount(root) {
   // Auswahl-Leiste (Bereich, Saison, Kategorie, Team, Zählen, Spielarten) – gemeinsam für Auswertung und Analysen.
   // Zeichnet die Leiste + <div class="ms-aw"> in ziel; neu() zeichnet bei einer Änderung neu.
   // Rückgabe: gefilterte Spiele usw. oder null (keine Spiele)
-  function filterLeiste(ziel, neu) {
-    const bListe = F.bereich === 'alle' ? ['trainer', 'spieler', 'fan'] : [F.bereich];
+  // opt.bereich: Bereich fix (z.B. 'spieler' für Goalie, Umschalter ausgeblendet); opt.modus: Zählweise fix (Auswahl ausgeblendet)
+  function filterLeiste(ziel, neu, vorgabe = {}) {
+    const fb = vorgabe.bereich || F.bereich, fm = vorgabe.modus || F.modus;
+    const bListe = fb === 'alle' ? ['trainer', 'spieler', 'fan'] : [fb];
     const abschnitte = aktivA().filter(a => bListe.includes(a.bereich));
     // Auswahl-Listen hängen voneinander ab: jede Liste zeigt nur, was zu den anderen Auswahlen passt
     const katVon = a => a.kategorie || 'Ohne Kategorie';
@@ -589,17 +595,17 @@ export async function mount(root) {
     }
     const aIds = new Set(abschnitte.filter(a => passtSaison(a) && passtKat(a) && passtTeam(a)).map(a => a.id));
     // Spielarten: nur die anzeigen, die in dieser Auswahl vorkommen (mit Anzahl)
-    const artAnz = M.zaehle(D.SP.filter(s => aIds.has(s.abschnitt_id) && M.zaehlt(s, bereichVon(s), F.modus)), s => s.spielart);
+    const artAnz = M.zaehle(D.SP.filter(s => aIds.has(s.abschnitt_id) && M.zaehlt(s, bereichVon(s), fm)), s => s.spielart);
     const artN = k => artAnz.find(x => x.key === k)?.n || 0;
     const opt = (wert, aktuell, text) => `<option value="${esc(wert)}" ${wert === aktuell ? 'selected' : ''}>${esc(text)}</option>`;
-    const spiele = D.SP.filter(s => aIds.has(s.abschnitt_id) && F.arten.includes(s.spielart) && M.zaehlt(s, bereichVon(s), F.modus));
+    const spiele = D.SP.filter(s => aIds.has(s.abschnitt_id) && F.arten.includes(s.spielart) && M.zaehlt(s, bereichVon(s), fm));
     const eigene = spiele.filter(s => bereichVon(s) !== 'fan');
     const fan = spiele.filter(s => bereichVon(s) === 'fan');
-    const mitEigenen = F.bereich !== 'fan';
-    const mitFan = F.bereich === 'alle' || F.bereich === 'fan';
+    const mitEigenen = fb !== 'fan';
+    const mitFan = fb === 'alle' || fb === 'fan';
 
     ziel.innerHTML = `
-      <div class="seg ms-bereich ms-f-bereich">${[['alle', 'Alle'], ...Object.entries(M.BEREICHE).map(([k, b]) => [k, `${b.icon} ${b.name}`])].map(([k, t]) => `<button data-b="${k}" class="${F.bereich === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+      ${vorgabe.bereich ? '' : `<div class="seg ms-bereich ms-f-bereich">${[['alle', 'Alle'], ...Object.entries(M.BEREICHE).map(([k, b]) => [k, `${b.icon} ${b.name}`])].map(([k, t]) => `<button data-b="${k}" class="${F.bereich === k ? 'on' : ''}">${t}</button>`).join('')}</div>`}
       <div class="ms-filter">
         <label class="sel-wrap">Saison
           <select class="f-saison"><option value="">Alle</option>${saisons.map(s => opt(s, F.saison, s)).join('')}</select>
@@ -613,14 +619,14 @@ export async function mount(root) {
             <optgroup label="Team">${teamOpt.map(o => opt(o.v, F.team, o.t)).join('')}</optgroup>
           </select>
         </label>` : ''}
-        ${mitEigenen ? `<label class="sel-wrap ms-modus">Zählen
+        ${mitEigenen && !vorgabe.modus ? `<label class="sel-wrap ms-modus">Zählen
           <select class="f-modus">${Object.entries(M.MODI).map(([k, t]) => `<option value="${k}" ${F.modus === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
         </label>` : ''}
       </div>
       <div class="ms-arten">${Object.entries(M.SPIELARTEN).filter(([k]) => artN(k)).map(([k, t]) => `<button class="chip ${F.arten.includes(k) ? 'on' : ''}" data-art="${k}">${t} <small>${artN(k)}</small></button>`).join('')}</div>
       <div class="ms-aw"></div>`;
 
-    ziel.querySelector('.ms-f-bereich').onclick = e => { const b = e.target.closest('button'); if (!b) return; F.bereich = b.dataset.b; setEinst({ aBereich: F.bereich }); neu(); };
+    if (!vorgabe.bereich) ziel.querySelector('.ms-f-bereich').onclick = e => { const b = e.target.closest('button'); if (!b) return; F.bereich = b.dataset.b; setEinst({ aBereich: F.bereich }); neu(); };
     ziel.querySelector('.f-saison').onchange = e => { F.saison = e.target.value; neu(); };
     ziel.querySelector('.f-kat')?.addEventListener('change', e => { F.kategorie = e.target.value; neu(); });
     ziel.querySelector('.f-team')?.addEventListener('change', e => { F.team = e.target.value; neu(); });
@@ -788,9 +794,238 @@ export async function mount(root) {
   //  ANALYSEN – 🗺️ Hallen-Karte (weitere Analysen folgen)
   // ==============================================================
   function hatGeo() { return !D.H.length || 'lat' in D.H[0]; }
+  // ==============================================================
+  //  ANALYSEN – Unter-Tabs
+  // ==============================================================
   function tabAnalysen(ziel) {
     karteWeg();
-    const R = filterLeiste(ziel, () => tabAnalysen(ziel));
+    ziel.innerHTML = `
+      <div class="seg ms-an-tabs">${Object.entries(AN).map(([k, t]) => `<button data-an="${k}" class="${anTab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+      <div class="ms-an"></div>`;
+    ziel.querySelector('.ms-an-tabs').onclick = e => {
+      const b = e.target.closest('[data-an]'); if (!b) return;
+      anTab = b.dataset.an; setEinst({ anTab }); tabAnalysen(ziel);
+    };
+    const inhalt = ziel.querySelector('.ms-an');
+    const neu = () => tabAnalysen(ziel);
+    if (anTab === 'goalie') anGoalie(inhalt, neu);
+    else if (anTab === 'rekorde') anRekorde(inhalt, neu);
+    else if (anTab === 'wann') anWann(inhalt, neu);
+    else if (anTab === 'laufbahn') anLaufbahn(inhalt);
+    else anKarte(inhalt, neu);
+    inhalt.addEventListener('click', e => {
+      const b = e.target.closest('[data-sp]');
+      if (b && !e.defaultPrevented && !b.closest('.ms-map-info')) oeffneSpiel(D.SP.find(sp => sp.id === b.dataset.sp));
+    });
+  }
+
+  // Einfaches Liniendiagramm (SVG, passt sich der Breite an). serien: [{ name, farbe, werte: [Zahl|null] }]
+  function linienChart(labels, serien, { einheit = '' } = {}) {
+    const W = 360, H = 190, l = 30, r = 24, o = 18, u = 34;
+    const alle = serien.flatMap(x => x.werte).filter(v => v != null);
+    if (!alle.length) return '<p class="muted klein">Keine Daten.</p>';
+    const max = Math.max(1, ...alle) * 1.15;
+    const x = i => l + (labels.length < 2 ? (W - l - r) / 2 : i * (W - l - r) / (labels.length - 1));
+    const y = v => o + (H - o - u) * (1 - v / max);
+    const schritt = max > 12 ? 5 : max > 6 ? 2 : 1;
+    const raster = Array.from({ length: Math.floor(max / schritt) + 1 }, (_, i) => i * schritt).map(v => `<line x1="${l}" x2="${W - r}" y1="${y(v)}" y2="${y(v)}" class="ms-ch-raster"/><text x="${l - 4}" y="${y(v) + 3}" class="ms-ch-y">${v}</text>`).join('');
+    const xl = labels.map((t, i) => `<text x="${x(i)}" y="${H - u + 14}" class="ms-ch-x">${esc(t)}</text>`).join('');
+    const linien = serien.map((se, si) => {
+      const pkt = se.werte.map((v, i) => v == null ? null : [x(i), y(v), v]).filter(Boolean);
+      return `<polyline points="${pkt.map(p => p.slice(0, 2).join(',')).join(' ')}" fill="none" stroke="${se.farbe}" stroke-width="2.5" stroke-linejoin="round"/>`
+        + pkt.map(([px, py, v]) => `<circle cx="${px}" cy="${py}" r="4" fill="${se.farbe}"/><text x="${px}" y="${si ? py + 15 : py - 8}" class="ms-ch-wert" fill="${se.farbe}">${M.zahl1(v)}${einheit}</text>`).join('');
+    }).join('');
+    return `<svg class="ms-chart" viewBox="0 0 ${W} ${H}" role="img">${raster}${xl}${linien}</svg>
+      ${serien.length > 1 ? `<div class="ms-ch-leg">${serien.map(se => `<span><i style="background:${se.farbe}"></i>${esc(se.name)}</span>`).join('')}</div>` : ''}`;
+  }
+  function sunHTML(b) { return `<span class="s">${b.s}</span>-<span class="u">${b.u}</span>-<span class="n">${b.n}</span>`; }
+  // echte Farbe statt var(--team) – SVG-Attribute verstehen CSS-Variablen nicht überall
+  function teamFarbe() { return getComputedStyle(document.documentElement).getPropertyValue('--team').trim() || '#e11d48'; }
+  function kurzSaison(n) { return String(n).replace(/^20(\d\d)\/(\d\d)$/, '$1/$2'); }
+
+  // ---- 🥅 Goalie-Entwicklung ----------------------------------------
+  function anGoalie(ziel, neu) {
+    const R = filterLeiste(ziel, neu, { bereich: 'spieler', modus: 'alle' });
+    if (!R) return;
+    const { aw, spiele } = R;
+    const ich = spiele.filter(s => s.ich === 'tor'), andere = spiele.filter(s => s.ich !== 'tor');
+    const saisonen = [...new Set(spiele.map(s => M.saisonVon(s, AM)))].sort((a, b) => M.saisonSchluessel(a) - M.saisonSchluessel(b));
+    const proSaison = (l, se) => M.bilanz(l.filter(s => M.saisonVon(s, AM) === se));
+    const bI = M.bilanz(ich);
+    const gtGruppen = [['0–2', 0, 2], ['3–4', 3, 4], ['5–6', 5, 6], ['7–8', 7, 8], ['9 und mehr', 9, 99]];
+    const umschalter = `<div class="seg ms-g-modus">${[['ich', 'Nur meine Spiele'], ['saison', 'Ganze Saison (Vergleich)']].map(([k, t]) => `<button data-gm="${k}" class="${F.gModus === k ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+    let html = '';
+    if (F.gModus !== 'saison') {
+      const mitRes = ich.filter(s => M.ergebnis(s));
+      const beste = [...mitRes].sort((a, b) => a.tore2 - b.tore2 || String(b.datum).localeCompare(String(a.datum))).slice(0, 3);
+      const schwer = [...mitRes].sort((a, b) => b.tore2 - a.tore2 || String(b.datum).localeCompare(String(a.datum))).slice(0, 3);
+      html = `
+        <section class="ms-karte">${umschalter}
+          <div class="ms-kpis klein">${kpi(ich.length, 'Spiele im Tor')}${kpi(sunHTML(bI), 'Bilanz')}${kpi(`${bI.quote}%`, 'Siegquote')}${kpi(M.zahl1(bI.schnittGT), 'Ø Gegentore')}</div>
+          <h4>Ø Gegentore pro Saison</h4>
+          ${linienChart(saisonen.map(kurzSaison), [{ name: 'Ich', farbe: teamFarbe(), werte: saisonen.map(se => { const b = proSaison(ich, se); return b.sp ? b.schnittGT : null; }) }])}
+          <div class="ms-scroll"><table class="ms-tab"><thead><tr><th class="l">Saison</th><th>Sp</th><th>S-U-N</th><th>GT</th><th>Ø GT</th></tr></thead>
+            <tbody>${saisonen.map(se => { const b = proSaison(ich, se); return b.sp ? `<tr><td class="l"><b>${esc(se)}</b></td><td>${b.sp}</td><td>${sunHTML(b)}</td><td>${b.gt}</td><td>${M.zahl1(b.schnittGT)}</td></tr>` : ''; }).join('')}</tbody></table></div>
+        </section>
+        <section class="ms-karte"><h3 class="gruppe">Gegentore pro Spiel</h3>
+          ${balkenListe(gtGruppen.map(([t, a, b]) => ({ t: `${t} Gegentore`, n: mitRes.filter(s => s.tore2 >= a && s.tore2 <= b).length })))}
+        </section>
+        <section class="ms-karte"><h3 class="gruppe">✨ Beste Spiele <span>wenigste Gegentore</span></h3>
+          <ul class="ms-spiele">${beste.map(s => spielZeile(s, { mitBereich: true })).join('')}</ul></section>
+        <section class="ms-karte"><h3 class="gruppe">😅 Am meisten zu tun <span>meiste Gegentore</span></h3>
+          <ul class="ms-spiele">${schwer.map(s => spielZeile(s, { mitBereich: true })).join('')}</ul></section>`;
+    } else {
+      const bA = M.bilanz(andere);
+      html = `
+        <section class="ms-karte">${umschalter}
+          <p class="muted klein">«Andere Goalies» = alle Teamspiele, in denen du nicht im Tor warst (Ersatz oder nicht dabei). Nur Spiele mit Resultat.</p>
+          <div class="ms-vergleich">
+            <div><b>🥅 Ich</b>${kpi(bI.sp, 'Spiele')}${kpi(sunHTML(bI), 'Bilanz')}${kpi(`${bI.quote}%`, 'Siegquote')}${kpi(M.zahl1(bI.schnittGT), 'Ø Gegentore')}</div>
+            <div><b>👥 Andere Goalies</b>${kpi(bA.sp, 'Spiele')}${kpi(sunHTML(bA), 'Bilanz')}${kpi(`${bA.quote}%`, 'Siegquote')}${kpi(M.zahl1(bA.schnittGT), 'Ø Gegentore')}</div>
+          </div>
+          <h4>Ø Gegentore pro Saison</h4>
+          ${linienChart(saisonen.map(kurzSaison), [
+            { name: 'Ich', farbe: teamFarbe(), werte: saisonen.map(se => { const b = proSaison(ich, se); return b.sp ? b.schnittGT : null; }) },
+            { name: 'Andere Goalies', farbe: '#2563eb', werte: saisonen.map(se => { const b = proSaison(andere, se); return b.sp ? b.schnittGT : null; }) },
+          ])}
+          <div class="ms-scroll"><table class="ms-tab"><thead><tr><th class="l">Saison</th><th>Ich Sp</th><th>S-U-N</th><th>Ø GT</th><th>Andere Sp</th><th>S-U-N</th><th>Ø GT</th></tr></thead>
+            <tbody>${saisonen.map(se => { const a = proSaison(ich, se), b = proSaison(andere, se); return `<tr><td class="l"><b>${esc(se)}</b></td>
+              <td>${a.sp}</td><td>${a.sp ? sunHTML(a) : ''}</td><td>${a.sp ? M.zahl1(a.schnittGT) : ''}</td>
+              <td>${b.sp}</td><td>${b.sp ? sunHTML(b) : ''}</td><td>${b.sp ? M.zahl1(b.schnittGT) : ''}</td></tr>`; }).join('')}</tbody></table></div>
+        </section>`;
+    }
+    aw.innerHTML = html;
+    aw.querySelector('.ms-g-modus').onclick = e => { const b = e.target.closest('[data-gm]'); if (!b) return; F.gModus = b.dataset.gm; setEinst({ gModus: F.gModus }); neu(); };
+  }
+
+  // ---- 🏆 Rekorde, Serien, knappe Spiele, Lieblings-/Angstgegner ------
+  function anRekorde(ziel, neu) {
+    const R = filterLeiste(ziel, neu);
+    if (!R) return;
+    const { aw, eigene, fan } = R;
+    const spielKarte = (titel, s) => s ? `<div class="ms-rek"><h4>${titel}</h4><ul class="ms-spiele">${spielZeile(s, { mitBereich: true })}</ul></div>` : '';
+    const serieText = x => x.n ? `${x.n} <small>${x.von.datum ? `${esc(M.datumLang(x.von.datum))} – ${esc(M.datumLang(x.bis.datum))}` : ''}</small>` : '–';
+    let html = '';
+    if (eigene.some(s => M.ergebnis(s))) {
+      const r = M.rekorde(eigene), se = M.serien(eigene);
+      const kn = M.bilanz(M.knapp(eigene)), nv = M.bilanz(M.verlaengerung(eigene));
+      const gr = M.gegnerRangliste(eigene, F.fusion ? heuteVerein : id => id);
+      const AKT = { s: 'Siege', u: 'Unentschieden', n: 'Niederlagen' };
+      const gegnerZeile = g => `<li><span>${esc(vName(g.id))}${vLand(g.id)}</span><span class="ms-g-zahlen"><b>${g.sp}</b> Sp · ${sunHTML(g)}</span></li>`;
+      html += `
+        <section class="ms-karte"><h3 class="gruppe">🏆 Rekord-Spiele</h3>
+          ${spielKarte('Höchster Sieg', r.hoechsterSieg)}${spielKarte('Höchste Niederlage', r.hoechsteNiederlage)}
+          ${spielKarte('Torreichstes Spiel', r.torreichstes)}${spielKarte('Meiste eigene Tore', r.meisteTore)}
+        </section>
+        <section class="ms-karte"><h3 class="gruppe">🔥 Serien <span>chronologisch</span></h3>
+          <div class="ms-kpis klein ms-serien">
+            ${kpi(serieText(se.sieg), 'Siege in Serie')}${kpi(serieText(se.niederlage), 'Niederlagen in Serie')}
+            ${kpi(serieText(se.ungeschlagen), 'ungeschlagen in Serie')}${kpi(serieText(se.ohneSieg), 'ohne Sieg in Serie')}
+            ${se.aktuell.n ? kpi(`${se.aktuell.n} ${AKT[se.aktuell.art]}`, 'aktuelle Serie', `seit ${esc(M.datumLang(se.aktuell.von.datum))}`) : ''}
+          </div>
+          <p class="muted klein">Über alle ausgewählten Spiele hinweg (auch über Teams und Saisons) – für einzelne Teams oben das Team wählen.</p>
+        </section>
+        <section class="ms-karte"><h3 class="gruppe">😬 Knappe Spiele</h3>
+          <div class="ms-kpis klein">
+            ${kpi(sunHTML(kn), `max. 1 Tor Differenz (${kn.sp} Sp)`, `${kn.quote}% Siege`)}
+            ${kpi(sunHTML(nv), `nach Verlängerung / Penaltys (${nv.sp} Sp)`, `${nv.quote}% Siege`)}
+          </div>
+        </section>
+        ${gr.liebling.length || gr.angst.length ? `<section class="ms-karte"><h3 class="gruppe">💚 Lieblingsgegner & 😈 Angstgegner <span>ab 3 Spielen</span></h3>
+          <div class="ms-zwei">
+            <div><h4>💚 Lieblingsgegner</h4><ul class="ms-rangl">${gr.liebling.map(gegnerZeile).join('') || '<li class="muted klein">–</li>'}</ul></div>
+            <div><h4>😈 Angstgegner</h4><ul class="ms-rangl">${gr.angst.map(gegnerZeile).join('') || '<li class="muted klein">–</li>'}</ul></div>
+          </div></section>` : ''}`;
+    }
+    if (fan.some(s => s.tore1 != null)) {
+      const rf = M.rekorde(fan);
+      const diffMax = [...fan].filter(s => s.tore1 != null).sort((a, b) => Math.abs(b.tore1 - b.tore2) - Math.abs(a.tore1 - a.tore2))[0];
+      html += `<section class="ms-karte"><h3 class="gruppe">👀 Fan-Rekorde</h3>
+        ${spielKarte('Torreichstes Spiel', rf.torreichstes)}${spielKarte('Deutlichstes Resultat', diffMax)}</section>`;
+    }
+    aw.innerHTML = html || '<p class="muted pad leer">Keine Spiele mit Resultat für diese Auswahl.</p>';
+  }
+
+  // ---- 🕒 Wann wird gespielt + Hallen-Sammlung -------------------------
+  function anWann(ziel, neu) {
+    const R = filterLeiste(ziel, neu);
+    if (!R) return;
+    const { aw, spiele } = R;
+    const eig = s => bereichVon(s) !== 'fan';
+    const quote = l => { const b = M.bilanz(l.filter(eig)); return b.sp ? `${b.quote}% Siege (${b.sp})` : ''; };
+    const wt = M.WOCHENTAGE.map((t, i) => { const l = spiele.filter(s => M.wochentag(s.datum) === i); return { t, n: l.length, sub: quote(l) }; }).filter(x => x.n);
+    const zf = Object.entries(M.ZEITFENSTER).map(([k, t]) => { const l = spiele.filter(s => M.zeitfenster(s.zeit) === k); return { t, n: l.length, sub: quote(l) }; }).filter(x => x.n);
+    const mo = [6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5].map(m => ({ t: M.MONATE[m], n: spiele.filter(s => s.datum && +s.datum.slice(5, 7) === m + 1).length })).filter(x => x.n);
+    const HS = M.hallenSammlung(spiele, AM);
+    const orte = new Set([...HS.erste.keys()].map(id => HM.get(id)?.ort).filter(Boolean));
+    const saisons = [...HS.proSaison.keys()].sort((a, b) => M.saisonSchluessel(b) - M.saisonSchluessel(a));
+    aw.innerHTML = `
+      <section class="ms-karte"><h3 class="gruppe">📅 Wochentag</h3>${balkenListe(wt)}</section>
+      <section class="ms-karte"><h3 class="gruppe">🕒 Anspielzeit</h3>${balkenListe(zf)}
+        ${zf.length ? '' : '<p class="muted klein">Keine Zeiten erfasst.</p>'}</section>
+      <section class="ms-karte"><h3 class="gruppe">🗓️ Monat <span>Saison-Reihenfolge</span></h3>${balkenListe(mo)}</section>
+      <section class="ms-karte"><h3 class="gruppe">🏟 Hallen-Sammlung</h3>
+        <div class="ms-kpis klein">${kpi(HS.erste.size, 'Hallen besucht')}${kpi(orte.size, 'Orte')}${kpi(HS.einmal.length, 'nur 1× dort')}</div>
+        <h4>Neue Hallen pro Saison</h4>
+        <ul class="ms-gegner">${saisons.map(se => `<li><details><summary><span class="ms-g-name">${esc(se)}</span><span class="ms-g-zahlen"><b>${HS.proSaison.get(se).length}</b> neu</span></summary>
+          <ul class="ms-hl-liste">${HS.proSaison.get(se).map(id => `<li>${esc(M.halleText(HM.get(id)))}</li>`).join('')}</ul></details></li>`).join('')}</ul>
+      </section>`;
+  }
+
+  // ---- 📅 Laufbahn: Zeitstrahl + Saison-Rückblick ----------------------
+  function anLaufbahn(ziel) {
+    const aB = aktivA();
+    const saisonen = [...new Set([...D.WG.map(w => M.saisonName(w.saison)), ...aB.map(a => M.saisonName(a.saison))])]
+      .filter(x => M.saisonSchluessel(x)).sort((a, b) => M.saisonSchluessel(b) - M.saisonSchluessel(a));
+    if (!F.rueckblick || !saisonen.includes(F.rueckblick)) F.rueckblick = saisonen[0] || '';
+    const zeile = se => {
+      const chips = [
+        ...D.WG.filter(w => M.saisonName(w.saison) === se).map(w => `<span class="ms-lb j">🧒 ${esc([vName(w.verein_id), w.team].filter(Boolean).join(' '))}${w.turnier ? ' 🏆' : ''}</span>`),
+        ...aB.filter(a => a.bereich === 'spieler' && M.saisonName(a.saison) === se).map(a => `<span class="ms-lb s">🥅 ${esc(abschnittTitel(a))}</span>`),
+        ...aB.filter(a => a.bereich === 'trainer' && M.saisonName(a.saison) === se).map(a => `<span class="ms-lb t">🎽 ${esc(abschnittTitel(a))}${a.kategorie && a.kategorie !== 'Meisterschaft' ? ` · ${esc(a.kategorie)}` : ''}</span>`),
+        ...aB.filter(a => a.bereich === 'fan' && M.saisonName(a.saison) === se).map(a => `<span class="ms-lb f">👀 ${plural(spieleVon(a.id).filter(s => !s.abgesagt).length, 'Spiel', 'Spiele')} geschaut</span>`),
+      ];
+      return `<li><button class="ms-lb-saison ${se === F.rueckblick ? 'on' : ''}" data-se="${esc(se)}">${esc(se)}</button><div class="ms-lb-chips">${chips.join('')}</div></li>`;
+    };
+    // Saison-Rückblick
+    const se = F.rueckblick;
+    const sp = aktiveSpiele().filter(s => !s.abgesagt && M.saisonVon(s, AM) === se);
+    const tr = sp.filter(s => bereichVon(s) === 'trainer' && M.zaehlt(s, 'trainer', 'meine'));
+    const spl = sp.filter(s => bereichVon(s) === 'spieler' && M.zaehlt(s, 'spieler', 'blatt'));
+    const tor = spl.filter(s => s.ich === 'tor');
+    const fan = sp.filter(s => bereichVon(s) === 'fan');
+    const eigene = [...tr, ...tor];
+    const r = M.rekorde(eigene);
+    // neue Hallen = in dieser Saison zum ersten Mal (über alle Bereiche)
+    const HS = M.hallenSammlung(aktiveSpiele().filter(s => !s.abgesagt), AM);
+    const neueHallen = HS.proSaison.get(se) || [];
+    const highlights = M.sortiereSpiele(sp.filter(s => s.notiz && !/^(Gruppenspiel|K\.o\.-Spiel)$/.test(s.notiz))).reverse();
+    const bT = M.bilanz(tr), bS = M.bilanz(tor);
+    ziel.innerHTML = `
+      <section class="ms-karte"><h3 class="gruppe">📅 Zeitstrahl <span>Saison antippen → Rückblick</span></h3>
+        <ul class="ms-lb-liste">${saisonen.map(zeile).join('')}</ul>
+      </section>
+      ${se ? `<section class="ms-karte ms-rb"><h3 class="gruppe">🔎 Rückblick ${esc(se)}</h3>
+        <div class="ms-kpis klein">
+          ${tr.length ? kpi(tr.length, '🎽 als Trainer', bT.sp ? sunHTML(bT) : '') : ''}
+          ${spl.length ? kpi(spl.length, '🥅 auf dem Matchblatt', `${tor.length} im Tor${bS.sp ? ` · ${sunHTML(bS)} · Ø ${M.zahl1(bS.schnittGT)} GT` : ''}`) : ''}
+          ${fan.length ? kpi(fan.length, '👀 als Fan') : ''}
+          ${kpi(neueHallen.length, 'neue Hallen')}
+        </div>
+        ${!tr.length && !spl.length && !fan.length ? '<p class="muted klein">Für diese Saison gibt es nur Einträge im Junioren-Werdegang (keine einzelnen Spiele).</p>' : ''}
+        ${r.hoechsterSieg ? `<div class="ms-rek"><h4>Höchster Sieg</h4><ul class="ms-spiele">${spielZeile(r.hoechsterSieg, { mitBereich: true })}</ul></div>` : ''}
+        ${neueHallen.length ? `<details class="ms-mehr"><summary>🏟 ${plural(neueHallen.length, 'neue Halle', 'neue Hallen')}</summary><ul class="ms-hl-liste">${neueHallen.map(id => `<li>${esc(M.halleText(HM.get(id)))}</li>`).join('')}</ul></details>` : ''}
+        ${highlights.length ? `<h4>⭐ Notizen & Highlights</h4><ul class="ms-spiele">${highlights.map(s => spielZeile(s, { mitBereich: true })).join('')}</ul>` : ''}
+      </section>` : '<p class="muted pad">Noch keine Daten.</p>'}`;
+    ziel.querySelector('.ms-lb-liste')?.addEventListener('click', e => {
+      const b = e.target.closest('[data-se]'); if (!b) return;
+      F.rueckblick = b.dataset.se; anLaufbahn(ziel);
+      ziel.querySelector('.ms-rb')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function anKarte(ziel, neu) {
+    const R = filterLeiste(ziel, neu);
     if (!R) return;
     const { aw, spiele } = R;
     if (!hatGeo()) { aw.innerHTML = '<p class="muted pad">Für die Karte zuerst SQL 21 ausführen (Standorte der Hallen).</p>'; return; }
@@ -809,11 +1044,6 @@ export async function mount(root) {
       <section class="ms-karte">
         <h3 class="gruppe">🗺️ Hallen-Karte <span>${plural(hallen.length, 'Halle', 'Hallen')}</span></h3>
         <div class="ms-map"></div>
-        <div class="ms-map-leg">
-          <span><i style="background:#15803d"></i>positive Bilanz</span><span><i style="background:#dc2626"></i>negative</span>
-          <span><i style="background:#94a3b8"></i>ausgeglichen / ohne Resultat</span><span><i style="background:#2563eb"></i>nur als Fan</span>
-          <span>Grösse = Anzahl Spiele</span>
-        </div>
         ${ohneOrt.length || (!ro && nichtGesucht.length) ? `<div class="ms-geo">
           <p class="klein">${ohneOrt.length ? `📍 ${plural(ohneOrt.length, 'Halle hat', 'Hallen haben')} noch keinen Standort.` : ''}
             ${!ro && nichtGesucht.length ? ` Die App kann die Standorte über OpenStreetMap suchen (nur «Halle, Ort» wird gesendet, ca. 1–2 Sek. pro Halle).` : ''}</p>
@@ -866,7 +1096,7 @@ export async function mount(root) {
       });
       geoLaeuft = false;
       toast(`${ok} Standorte gefunden`, 'ok');
-      if (tab === 'analysen') tabAnalysen(ziel);
+      if (tab === 'analysen' && anTab === 'karte') neu();
     });
 
     // Karte zeichnen
@@ -879,13 +1109,12 @@ export async function mount(root) {
         maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
       }).addTo(karte);
       const punkte = [];
+      const punktFarbe = getComputedStyle(document.documentElement).getPropertyValue('--team').trim() || '#e11d48';
       // grosse Punkte zuerst, damit kleine darüber liegen und antippbar bleiben
       for (const h of [...mitOrt].sort((a, b) => proHalle.get(b.id).length - proHalle.get(a.id).length)) {
         const liste = proHalle.get(h.id);
-        const b = M.bilanz(liste.filter(sp => bereichVon(sp) !== 'fan'));
-        const nurFan = liste.every(sp => bereichVon(sp) === 'fan');
         const m = L.circleMarker([h.lat, h.lon], {
-          radius: K.radius(liste.length), color: '#fff', weight: 2, fillColor: K.farbe({ ...b, nurFan }), fillOpacity: .85,
+          radius: K.radius(liste.length), color: '#fff', weight: 2, fillColor: punktFarbe, fillOpacity: .85,
         }).addTo(karte);
         m.bindTooltip(`${M.halleText(h)} · ${liste.length}`, { direction: 'top' });
         m.on('click', () => { zeigeHalle(h.id); info.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
@@ -917,7 +1146,7 @@ export async function mount(root) {
         Object.assign(HM.get(id), { lat: ev.latlng.lat, lon: ev.latlng.lng, geo: 'hand' });
         toast('Standort gespeichert', 'ok');
         karteHalle = id;
-        tabAnalysen(ziel);
+        neu();
       });
     }).catch(() => { const el = aw.querySelector('.ms-map'); if (el) el.innerHTML = '<p class="muted pad">Karte konnte nicht geladen werden (Internet?).</p>'; });
   }
