@@ -13,8 +13,9 @@ import { sb } from './supabase.js';
 import { esc, toast, fehlerText } from './ui.js';
 import { ladeIch, sperrGrund } from './kontext.js';
 import * as M from './meinestats-logik.js';
+import * as K from './meinestats-karte.js';
 
-const TABS = { uebersicht: 'Übersicht', spiele: 'Spiele', auswertung: 'Auswertung', verwaltung: 'Verwaltung' };
+const TABS = { uebersicht: 'Übersicht', spiele: 'Spiele', auswertung: 'Auswertung', analysen: 'Analysen', verwaltung: '⚙️' };
 const TABELLEN = ['ms_vereine', 'ms_hallen', 'ms_abschnitte', 'ms_spiele', 'ms_tabellen'];   // ms_werdegang separat (darf fehlen)
 const SPEICHER = 'tt-meinestats';
 // Spalten der Rangtabelle (Editor)
@@ -76,7 +77,14 @@ export async function mount(root) {
   let vwSuche = '';
 
   const D = { V: [], H: [], A: [], SP: [], TB: [], WG: [] };
-  let junOffen = false;   // Kapitel «Junioren-Werdegang» aufgeklappt?
+  let junOffen = false;
+  // Hallen-Karte (Analysen): Leaflet-Karte, letzte Ansicht, gewählte Halle, «Punkt setzen»-Modus, laufende Suche
+  let karte = null, karteAnsicht = null, karteHalle = null, punktSetzen = null, geoLaeuft = false, geoStopp = false;
+  function karteWeg() {
+    if (!karte) return;
+    karteAnsicht = { c: karte.getCenter(), z: karte.getZoom() };
+    karte.remove(); karte = null;
+  }   // Kapitel «Junioren-Werdegang» aufgeklappt?
   let VM = new Map(), HM = new Map(), AM = new Map();
 
   root.innerHTML = `<div class="ms"><p class="muted pad">Lade …</p></div>${dialogeHTML()}`;
@@ -109,8 +117,8 @@ export async function mount(root) {
   // «ab 2025/26» → letzte Saison vor der Fusion «2024/25»
   const bisSaison = ab => { const k = M.saisonSchluessel(ab); return k ? M.saisonName(String(k - 1)) : ab; };
   // Fusionen: damaliger Name bleibt, dazu «→ heute …»
-  const heute = id => M.heutigerVerein(VM, id);
-  const heuteHinweis = id => { const h = id && heute(id); return h && h !== id ? ` <span class="ms-heute">→ heute ${esc(vName(h))}</span>` : ''; };
+  const heuteVerein = id => M.heutigerVerein(VM, id);
+  const heuteHinweis = id => { const h = id && heuteVerein(id); return h && h !== id ? ` <span class="ms-heute">→ heute ${esc(vName(h))}</span>` : ''; };
   const gegnerHTML = sp => sp.gegner_id ? `${esc(vName(sp.gegner_id))}${sp.gegner_zusatz ? ` ${esc(sp.gegner_zusatz)}` : ''}${vLand(sp.gegner_id)}${heuteHinweis(sp.gegner_id)}` : '<span class="muted">–</span>';
   const fanHTML = sp => (sp.heim_id || sp.gast_id)
     ? `${sp.heim_id ? esc(vName(sp.heim_id)) + vLand(sp.heim_id) + heuteHinweis(sp.heim_id) : '?'} – ${sp.gast_id ? esc(vName(sp.gast_id)) + vLand(sp.gast_id) + heuteHinweis(sp.gast_id) : '?'}`
@@ -119,11 +127,12 @@ export async function mount(root) {
 
   // ---- Live-Updates ---------------------------------------------
   let timer;
-  const spaeter = () => { clearTimeout(timer); timer = setTimeout(() => laden().then(zeichneTab).catch(() => {}), 500); };
+  // während der Standort-Suche nicht neu zeichnen (sonst flackert die Karte bei jeder gefundenen Halle)
+  const spaeter = () => { clearTimeout(timer); timer = setTimeout(() => laden().then(() => { if (!geoLaeuft) zeichneTab(); }).catch(() => {}), 500); };
   const kanal = sb.channel('meinestats-live');
   for (const table of [...TABELLEN, 'ms_werdegang']) kanal.on('postgres_changes', { event: '*', schema: 'public', table }, spaeter);
   kanal.subscribe();
-  const aufraeumen = () => { clearTimeout(timer); sb.removeChannel(kanal); };
+  const aufraeumen = () => { clearTimeout(timer); sb.removeChannel(kanal); karteWeg(); geoStopp = true; };
 
   try { await laden(); zeichne(); }
   catch (e) {
@@ -137,7 +146,7 @@ export async function mount(root) {
     box.innerHTML = `
       <a href="#/" class="zurueck">← Hauptseite</a>
       ${ro ? `<div class="banner">${esc(sperrGrund(null, ich))}</div>` : ''}
-      <div class="seg ms-tabs">${Object.entries(TABS).map(([k, t]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+      <div class="seg ms-tabs">${Object.entries(TABS).map(([k, t]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}" ${k === 'verwaltung' ? 'title="Verwaltung" aria-label="Verwaltung"' : ''}>${t}</button>`).join('')}</div>
       <div class="ms-tab"></div>
       ${!ro ? '<button class="fab ms-fab" title="Neue Saison / neues Team" aria-label="Neue Saison / neues Team" hidden>＋</button>' : ''}`;
     box.querySelector('.ms-tabs').onclick = e => {
@@ -157,9 +166,11 @@ export async function mount(root) {
     const fab = box.querySelector('.ms-fab');
     if (fab) fab.hidden = tab !== 'spiele';
     ziel.onclick = null;
+    karteWeg();
     if (tab === 'uebersicht') tabUebersicht(ziel);
     else if (tab === 'spiele') tabSpiele(ziel);
     else if (tab === 'auswertung') tabAuswertung(ziel);
+    else if (tab === 'analysen') tabAnalysen(ziel);
     else tabVerwaltung(ziel);
   }
 
@@ -547,7 +558,10 @@ export async function mount(root) {
   // ==============================================================
   //  AUSWERTUNG
   // ==============================================================
-  function tabAuswertung(ziel) {
+  // Auswahl-Leiste (Bereich, Saison, Kategorie, Team, Zählen, Spielarten) – gemeinsam für Auswertung und Analysen.
+  // Zeichnet die Leiste + <div class="ms-aw"> in ziel; neu() zeichnet bei einer Änderung neu.
+  // Rückgabe: gefilterte Spiele usw. oder null (keine Spiele)
+  function filterLeiste(ziel, neu) {
     const bListe = F.bereich === 'alle' ? ['trainer', 'spieler', 'fan'] : [F.bereich];
     const abschnitte = aktivA().filter(a => bListe.includes(a.bereich));
     // Auswahl-Listen hängen voneinander ab: jede Liste zeigt nur, was zu den anderen Auswahlen passt
@@ -606,19 +620,26 @@ export async function mount(root) {
       <div class="ms-arten">${Object.entries(M.SPIELARTEN).filter(([k]) => artN(k)).map(([k, t]) => `<button class="chip ${F.arten.includes(k) ? 'on' : ''}" data-art="${k}">${t} <small>${artN(k)}</small></button>`).join('')}</div>
       <div class="ms-aw"></div>`;
 
-    ziel.querySelector('.ms-f-bereich').onclick = e => { const b = e.target.closest('button'); if (!b) return; F.bereich = b.dataset.b; setEinst({ aBereich: F.bereich }); tabAuswertung(ziel); };
-    ziel.querySelector('.f-saison').onchange = e => { F.saison = e.target.value; tabAuswertung(ziel); };
-    ziel.querySelector('.f-kat')?.addEventListener('change', e => { F.kategorie = e.target.value; tabAuswertung(ziel); });
-    ziel.querySelector('.f-team')?.addEventListener('change', e => { F.team = e.target.value; tabAuswertung(ziel); });
-    ziel.querySelector('.f-modus')?.addEventListener('change', e => { F.modus = e.target.value; setEinst({ modus: F.modus }); tabAuswertung(ziel); });
+    ziel.querySelector('.ms-f-bereich').onclick = e => { const b = e.target.closest('button'); if (!b) return; F.bereich = b.dataset.b; setEinst({ aBereich: F.bereich }); neu(); };
+    ziel.querySelector('.f-saison').onchange = e => { F.saison = e.target.value; neu(); };
+    ziel.querySelector('.f-kat')?.addEventListener('change', e => { F.kategorie = e.target.value; neu(); });
+    ziel.querySelector('.f-team')?.addEventListener('change', e => { F.team = e.target.value; neu(); });
+    ziel.querySelector('.f-modus')?.addEventListener('change', e => { F.modus = e.target.value; setEinst({ modus: F.modus }); neu(); });
     ziel.querySelector('.ms-arten').onclick = e => {
       const b = e.target.closest('[data-art]'); if (!b) return;
       F.arten = F.arten.includes(b.dataset.art) ? F.arten.filter(x => x !== b.dataset.art) : [...F.arten, b.dataset.art];
-      setEinst({ arten: F.arten }); tabAuswertung(ziel);
+      setEinst({ arten: F.arten }); neu();
     };
     const aw = ziel.querySelector('.ms-aw');
-    if (!spiele.length) { aw.innerHTML = '<p class="muted pad leer">Keine Spiele für diese Auswahl.</p>'; return; }
+    if (!spiele.length) { aw.innerHTML = '<p class="muted pad leer">Keine Spiele für diese Auswahl.</p>'; return null; }
+    return { aw, spiele, eigene, fan, abschnitte, aIds, mitEigenen, mitFan };
 
+  }
+
+  function tabAuswertung(ziel) {
+    const R = filterLeiste(ziel, () => tabAuswertung(ziel));
+    if (!R) return;
+    const { aw, spiele, eigene, fan, abschnitte, aIds, mitEigenen, mitFan } = R;
     let html = '';
     // ---- Bilanz pro Saison/Team ----
     if (mitEigenen && eigene.length) {
@@ -736,7 +757,7 @@ export async function mount(root) {
     const gl = aw.querySelector('.ms-gegner:not(.ms-hl)');
     if (gl) {
       const zeichneG = () => {
-        const alleG = M.gegnerBilanz(eigene, F.fusion ? heute : id => id);
+        const alleG = M.gegnerBilanz(eigene, F.fusion ? heuteVerein : id => id);
         const q = M.norm(F.suche);
         // Suche findet auch frühere Namen (z.B. «Eggiwil» → Unihockey Emme)
         let l = alleG.filter(g => !q || M.norm([vName(g.id), ...g.teile.map(t => vName(t.id))].join(' ')).includes(q));
@@ -761,6 +782,144 @@ export async function mount(root) {
       aw.querySelector('.ms-g-fusion')?.addEventListener('change', e => { F.fusion = e.target.checked; zeichneG(); });
       gl.addEventListener('click', e => { const b = e.target.closest('[data-sp]'); if (b) oeffneSpiel(D.SP.find(s => s.id === b.dataset.sp)); });
     }
+  }
+
+  // ==============================================================
+  //  ANALYSEN – 🗺️ Hallen-Karte (weitere Analysen folgen)
+  // ==============================================================
+  function hatGeo() { return !D.H.length || 'lat' in D.H[0]; }
+  function tabAnalysen(ziel) {
+    karteWeg();
+    const R = filterLeiste(ziel, () => tabAnalysen(ziel));
+    if (!R) return;
+    const { aw, spiele } = R;
+    if (!hatGeo()) { aw.innerHTML = '<p class="muted pad">Für die Karte zuerst SQL 21 ausführen (Standorte der Hallen).</p>'; return; }
+    // Spiele pro Halle (Livestream hat keine Halle)
+    const proHalle = new Map();
+    for (const sp of spiele) if (sp.halle_id && !sp.livestream) {
+      if (!proHalle.has(sp.halle_id)) proHalle.set(sp.halle_id, []);
+      proHalle.get(sp.halle_id).push(sp);
+    }
+    const hallen = [...proHalle.keys()].map(id => HM.get(id)).filter(Boolean);
+    const mitOrt = hallen.filter(h => h.lat != null && h.lon != null);
+    const ohneOrt = hallen.filter(h => h.lat == null || h.lon == null);
+    const nichtGesucht = D.H.filter(h => h.lat == null && !h.geo);
+    const nurOrt = mitOrt.filter(h => h.geo === 'ort').length;
+    aw.innerHTML = `
+      <section class="ms-karte">
+        <h3 class="gruppe">🗺️ Hallen-Karte <span>${plural(hallen.length, 'Halle', 'Hallen')}</span></h3>
+        <div class="ms-map"></div>
+        <div class="ms-map-leg">
+          <span><i style="background:#15803d"></i>positive Bilanz</span><span><i style="background:#dc2626"></i>negative</span>
+          <span><i style="background:#94a3b8"></i>ausgeglichen / ohne Resultat</span><span><i style="background:#2563eb"></i>nur als Fan</span>
+          <span>Grösse = Anzahl Spiele</span>
+        </div>
+        ${ohneOrt.length || (!ro && nichtGesucht.length) ? `<div class="ms-geo">
+          <p class="klein">${ohneOrt.length ? `📍 ${plural(ohneOrt.length, 'Halle hat', 'Hallen haben')} noch keinen Standort.` : ''}
+            ${!ro && nichtGesucht.length ? ` Die App kann die Standorte über OpenStreetMap suchen (nur «Halle, Ort» wird gesendet, ca. 1–2 Sek. pro Halle).` : ''}</p>
+          ${!ro && nichtGesucht.length ? `<button class="btn primary small ms-geo-los">📍 ${plural(nichtGesucht.length, 'Standort', 'Standorte')} suchen</button>` : ''}
+          <p class="klein ms-geo-status" hidden></p>
+        </div>` : ''}
+        ${nurOrt ? `<p class="muted klein">${plural(nurOrt, 'Halle sitzt', 'Hallen sitzen')} nur in der Ortsmitte (Halle nicht gefunden) – Halle antippen → «📍 Punkt setzen».</p>` : ''}
+        <div class="ms-map-info"></div>
+      </section>`;
+
+    // Halle gewählt → Infos + alle Spiele dort
+    const info = aw.querySelector('.ms-map-info');
+    const zeigeHalle = id => {
+      karteHalle = id;
+      const h = HM.get(id), liste = proHalle.get(id) || [];
+      if (!h || !liste.length) { info.innerHTML = '<p class="muted klein">Punkt antippen → alle Spiele in dieser Halle.</p>'; return; }
+      const b = M.bilanz(liste.filter(sp => bereichVon(sp) !== 'fan'));
+      const proB = ['trainer', 'spieler', 'fan'].map(k => [k, liste.filter(sp => bereichVon(sp) === k).length]).filter(([, n]) => n);
+      info.innerHTML = `
+        <div class="ms-map-kopf">
+          <div><b>${esc(M.halleText(h))}</b>
+            <small>${plural(liste.length, 'Spiel', 'Spiele')}${b.sp ? ` · <span class="s">${b.s}</span>-<span class="u">${b.u}</span>-<span class="n">${b.n}</span> · ${b.t}:${b.gt}` : ''} · ${proB.map(([k, n]) => `${M.BEREICHE[k].icon}${n}`).join(' ')}
+            ${h.geo === 'ort' ? ' · 📍 nur Ortsmitte' : h.geo === 'hand' ? ' · 📍 von Hand gesetzt' : ''}</small></div>
+          ${!ro ? `<button class="btn ghost small ms-punkt">📍 Punkt setzen</button>` : ''}
+        </div>
+        <ul class="ms-spiele">${neuesteZuerst(M.sortiereSpiele(liste)).map(sp => spielZeile(sp, { mitBereich: true })).join('')}</ul>`;
+      info.querySelector('.ms-punkt')?.addEventListener('click', () => {
+        punktSetzen = id;
+        toast('Jetzt auf der Karte auf den richtigen Ort tippen');
+        aw.querySelector('.ms-map').classList.add('setzen');
+      });
+    };
+    info.addEventListener('click', e => { const b = e.target.closest('[data-sp]'); if (b) oeffneSpiel(D.SP.find(sp => sp.id === b.dataset.sp)); });
+    zeigeHalle(proHalle.has(karteHalle) ? karteHalle : null);
+
+    // Standorte suchen (Admin)
+    aw.querySelector('.ms-geo-los')?.addEventListener('click', async e => {
+      if (geoLaeuft) return;
+      geoLaeuft = true; geoStopp = false;
+      e.target.disabled = true;
+      const st = aw.querySelector('.ms-geo-status'); st.hidden = false;
+      let ok = 0;
+      await K.sucheAlle(nichtGesucht, {
+        abbruch: () => geoStopp,
+        fortschritt: (i, n, h, fehler) => { st.textContent = fehler ? `⚠️ ${M.halleText(h)}: ${fehler.message}` : `Suche ${i}/${n}: ${M.halleText(h)} …`; },
+        gefunden: async (h, p) => {
+          const { error } = await sb.from('ms_hallen').update({ lat: p.lat, lon: p.lon, geo: p.geo }).eq('id', h.id);
+          if (!error) { Object.assign(h, p); ok++; }
+        },
+      });
+      geoLaeuft = false;
+      toast(`${ok} Standorte gefunden`, 'ok');
+      if (tab === 'analysen') tabAnalysen(ziel);
+    });
+
+    // Karte zeichnen
+    K.ladeLeaflet().then(L => {
+      const el = aw.querySelector('.ms-map');
+      if (!el || !el.isConnected) return;
+      karteWeg();
+      karte = L.map(el, { scrollWheelZoom: false, tap: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+      }).addTo(karte);
+      const punkte = [];
+      // grosse Punkte zuerst, damit kleine darüber liegen und antippbar bleiben
+      for (const h of [...mitOrt].sort((a, b) => proHalle.get(b.id).length - proHalle.get(a.id).length)) {
+        const liste = proHalle.get(h.id);
+        const b = M.bilanz(liste.filter(sp => bereichVon(sp) !== 'fan'));
+        const nurFan = liste.every(sp => bereichVon(sp) === 'fan');
+        const m = L.circleMarker([h.lat, h.lon], {
+          radius: K.radius(liste.length), color: '#fff', weight: 2, fillColor: K.farbe({ ...b, nurFan }), fillOpacity: .85,
+        }).addTo(karte);
+        m.bindTooltip(`${M.halleText(h)} · ${liste.length}`, { direction: 'top' });
+        m.on('click', () => { zeigeHalle(h.id); info.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+        punkte.push([h.lat, h.lon]);
+      }
+      // Ansicht: wie zuletzt, sonst alle Hallen in der Schweiz (Ausland per Herauszoomen)
+      const ch = punkte.filter(([la, lo]) => la > 45.7 && la < 47.9 && lo > 5.8 && lo < 10.6);
+      if (karteAnsicht) karte.setView(karteAnsicht.c, karteAnsicht.z);
+      else if (ch.length) karte.fitBounds(ch, { padding: [24, 24], maxZoom: 12 });
+      else if (punkte.length) karte.fitBounds(punkte, { padding: [24, 24], maxZoom: 12 });
+      else karte.setView([46.8, 8.2], 7);
+      if (punkte.length > ch.length) {
+        const knopf = L.control({ position: 'topright' });
+        knopf.onAdd = () => {
+          const d = L.DomUtil.create('button', 'ms-map-alle');
+          d.type = 'button'; d.textContent = `🌍 Alle (${punkte.length - ch.length} im Ausland)`;
+          L.DomEvent.on(d, 'click', ev => { L.DomEvent.stop(ev); karte.fitBounds(punkte, { padding: [24, 24] }); });
+          return d;
+        };
+        knopf.addTo(karte);
+      }
+      // «Punkt setzen»: nächster Tipp auf die Karte speichert den Standort
+      karte.on('click', async ev => {
+        if (!punktSetzen) return;
+        const id = punktSetzen; punktSetzen = null;
+        aw.querySelector('.ms-map')?.classList.remove('setzen');
+        const { error } = await sb.from('ms_hallen').update({ lat: ev.latlng.lat, lon: ev.latlng.lng, geo: 'hand' }).eq('id', id);
+        if (error) return toast(fehlerText(error), 'error');
+        Object.assign(HM.get(id), { lat: ev.latlng.lat, lon: ev.latlng.lng, geo: 'hand' });
+        toast('Standort gespeichert', 'ok');
+        karteHalle = id;
+        tabAnalysen(ziel);
+      });
+    }).catch(() => { const el = aw.querySelector('.ms-map'); if (el) el.innerHTML = '<p class="muted pad">Karte konnte nicht geladen werden (Internet?).</p>'; });
   }
 
   function balkenListe(werte, max = 0) {
@@ -1359,6 +1518,8 @@ export async function mount(root) {
       e.preventDefault();
       const row = { ort: f.ort.value.trim(), name: f.name.value.trim() };
       if (!row.ort) return fehler('Ort ausfüllen.');
+      // Ort/Name geändert → Standort neu suchen lassen (ausser von Hand gesetzt)
+      if (h && hatGeo() && h.geo !== 'hand' && (row.ort !== h.ort || row.name !== h.name)) Object.assign(row, { lat: null, lon: null, geo: null });
       const { error } = h ? await sb.from('ms_hallen').update(row).eq('id', h.id) : await sb.from('ms_hallen').insert(row);
       if (error) return fehler(fehlerText(error));
       dlg.close(); toast('Gespeichert', 'ok'); neu();

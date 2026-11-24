@@ -237,3 +237,17 @@
 .ms-wg-turniere { margin: 0; color: #92400e; font-weight: 600; }
 .ms-wg-zeile.turnier b { color: #92400e; }
 .ms-wg-anz { white-space: normal; line-height: 1.25; padding: 2px 7px; border-radius: 8px; max-width: 100%; }
+
+/* Analysen: Hallen-Karte */
+.ms-map { height: min(60vh, 460px); border-radius: 12px; overflow: hidden; background: #e5e7eb; position: relative; z-index: 0; isolation: isolate; }
+.ms-map.setzen { outline: 3px dashed var(--team); cursor: crosshair; }
+.ms-map-leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .75rem; color: var(--muted); }
+.ms-map-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.ms-map-alle { font: inherit; font-size: .8rem; font-weight: 600; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; box-shadow: var(--shadow); }
+.ms-geo { background: #eff6ff; border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; justify-items: start; }
+.ms-geo p { margin: 0; }
+.ms-map-kopf { display: flex; justify-content: space-between; align-items: start; gap: 8px; padding: 4px 4px 6px; border-bottom: 1px solid var(--line); }
+.ms-map-kopf > div { display: grid; gap: 2px; }
+.ms-map-kopf small { color: var(--muted); font-size: .78rem; }
+.ms-map-kopf .s { color: var(--ms-s); font-weight: 700; } .ms-map-kopf .u { color: var(--ms-u); font-weight: 700; } .ms-map-kopf .n { color: var(--ms-n); font-weight: 700; }
+.ms-tabs button[data-t="verwaltung"] { flex: 0 0 44px; }
