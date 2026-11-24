@@ -585,7 +585,8 @@ export async function mount(root) {
   // opt.bereich: Bereich fix (z.B. 'spieler' für Goalie, Umschalter ausgeblendet); opt.modus: Zählweise fix (Auswahl ausgeblendet)
   function filterLeiste(ziel, neu, vorgabe = {}) {
     const fb = vorgabe.bereich || F.bereich, fm = vorgabe.modus || F.modus;
-    const bListe = fb === 'alle' ? ['trainer', 'spieler', 'fan'] : [fb];
+    // 'eigene' = Trainer + Spieler zusammen (ohne Fan)
+    const bListe = fb === 'alle' ? ['trainer', 'spieler', 'fan'] : fb === 'eigene' ? ['trainer', 'spieler'] : [fb];
     const abschnitte = aktivA().filter(a => bListe.includes(a.bereich));
     // Auswahl-Listen hängen voneinander ab: jede Liste zeigt nur, was zu den anderen Auswahlen passt
     const katVon = a => a.kategorie || 'Ohne Kategorie';
@@ -622,7 +623,7 @@ export async function mount(root) {
     const mitFan = fb === 'alle' || fb === 'fan';
 
     ziel.innerHTML = `
-      ${vorgabe.bereich ? '' : `<div class="seg ms-bereich ms-f-bereich">${[['alle', 'Alle'], ...Object.entries(M.BEREICHE).map(([k, b]) => [k, `${b.icon} ${b.name}`])].map(([k, t]) => `<button data-b="${k}" class="${F.bereich === k ? 'on' : ''}">${t}</button>`).join('')}</div>`}
+      ${vorgabe.bereich ? '' : `<div class="seg ms-bereich ms-f-bereich">${[['alle', 'Alle'], ['eigene', '🎽+🥅'], ...Object.entries(M.BEREICHE).map(([k, b]) => [k, `${b.icon} ${b.name}`])].map(([k, t]) => `<button data-b="${k}" class="${F.bereich === k ? 'on' : ''}" ${k === 'eigene' ? 'title="Trainer + Spieler (ohne Fan)"' : ''}>${t}</button>`).join('')}</div>`}
       <div class="ms-filter">
         <label class="sel-wrap">Saison
           <select class="f-saison"><option value="">Alle</option>${saisons.map(s => opt(s, F.saison, s)).join('')}</select>
