@@ -235,3 +235,92 @@ export function datumLang(d) {
 }
 export const zeitKurz = z => z ? String(z).slice(0, 5) : '';
 export const zahl1 = x => (Math.round(x * 100) / 100).toLocaleString('de-CH', { maximumFractionDigits: 2 });
+
+// ================================================================
+//  Analysen: Serien, Rekorde, knappe Spiele, Zeitfenster
+// ================================================================
+const mitResultat = l => sortiereSpiele(l.filter(s => ergebnis(s)));
+
+// Längste Serien (chronologisch) + aktuelle Serie
+//   → { sieg, niederlage, ungeschlagen, ohneSieg, aktuell } je { n, von, bis } (von/bis = Spiele)
+export function serien(spiele) {
+  const l = mitResultat(spiele);
+  const lang = test => {
+    let best = { n: 0 }, akt = { n: 0 };
+    for (const s of l) {
+      if (test(ergebnis(s))) { akt = akt.n ? { n: akt.n + 1, von: akt.von, bis: s } : { n: 1, von: s, bis: s }; if (akt.n > best.n) best = akt; }
+      else akt = { n: 0 };
+    }
+    return best;
+  };
+  let aktuell = { n: 0 };
+  for (let i = l.length - 1; i >= 0; i--) {
+    const e = ergebnis(l[i]);
+    if (!aktuell.n) aktuell = { n: 1, art: e, von: l[i], bis: l[i] };
+    else if (e === aktuell.art) { aktuell.n++; aktuell.von = l[i]; }
+    else break;
+  }
+  return {
+    sieg: lang(e => e === 's'), niederlage: lang(e => e === 'n'),
+    ungeschlagen: lang(e => e !== 'n'), ohneSieg: lang(e => e !== 's'), aktuell,
+  };
+}
+
+// Rekord-Spiele (bei Gleichstand das neueste)
+export function rekorde(spiele) {
+  const l = mitResultat(spiele);
+  const max = f => l.reduce((b, s) => (b == null || f(s) >= f(b) ? s : b), null);
+  const min = f => l.reduce((b, s) => (b == null || f(s) <= f(b) ? s : b), null);
+  const diff = s => s.tore1 - s.tore2;
+  const hs = max(diff), hn = min(diff);
+  return {
+    hoechsterSieg: hs && diff(hs) > 0 ? hs : null,
+    hoechsteNiederlage: hn && diff(hn) < 0 ? hn : null,
+    torreichstes: max(s => s.tore1 + s.tore2),
+    meisteTore: max(s => s.tore1),
+    meisteGegentore: max(s => s.tore2),
+    wenigsteGegentore: min(s => s.tore2),
+  };
+}
+
+// Knappe Spiele: 1 Tor Differenz bzw. Entscheid n.V./n.P.
+export const knapp = spiele => spiele.filter(s => ergebnis(s) && (Math.abs(s.tore1 - s.tore2) <= 1 || s.entscheid));
+export const verlaengerung = spiele => spiele.filter(s => ergebnis(s) && s.entscheid);
+
+// Lieblings-/Angstgegner (ab min Spielen mit Resultat), sortiert nach (S − N) / Sp
+export function gegnerRangliste(spiele, gruppe = id => id, min = 3) {
+  const g = gegnerBilanz(spiele.filter(s => ergebnis(s)), gruppe).filter(x => x.sp >= min);
+  const wert = x => (x.s - x.n) / x.sp;
+  const sortiert = [...g].sort((a, b) => wert(b) - wert(a) || b.sp - a.sp);
+  return { liebling: sortiert.filter(x => wert(x) > 0).slice(0, 3), angst: [...sortiert].reverse().filter(x => wert(x) < 0).slice(0, 3) };
+}
+
+// Zeitfenster der Anspielzeit
+export const ZEITFENSTER = { morgen: 'Morgen (bis 12 Uhr)', nachmittag: 'Nachmittag (12–17 Uhr)', abend: 'Abend (ab 17 Uhr)' };
+export function zeitfenster(zeit) {
+  if (!zeit) return null;
+  const h = +String(zeit).slice(0, 2);
+  return h < 12 ? 'morgen' : h < 17 ? 'nachmittag' : 'abend';
+}
+export const WOCHENTAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+export function wochentag(datum) {   // 0 = Montag
+  if (!datum) return null;
+  const [y, m, t] = datum.split('-').map(Number);
+  return (new Date(y, m - 1, t).getDay() + 6) % 7;
+}
+export const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+// Saison eines Spiels (über seinen Block), als Name «2025/26»
+export const saisonVon = (sp, aMap) => saisonName(aMap.get(sp.abschnitt_id)?.saison);
+
+// Hallen-Sammlung: erste Saison pro Halle, neue Hallen pro Saison
+export function hallenSammlung(spiele, aMap) {
+  const erste = new Map();   // halle_id → { saison, datum }
+  for (const s of sortiereSpiele(spiele.filter(x => x.halle_id && !x.livestream))) {
+    if (!erste.has(s.halle_id)) erste.set(s.halle_id, { saison: saisonVon(s, aMap), datum: s.datum });
+  }
+  const proSaison = new Map();
+  for (const [id, x] of erste) { if (!proSaison.has(x.saison)) proSaison.set(x.saison, []); proSaison.get(x.saison).push(id); }
+  const anzahl = zaehle(spiele.filter(x => x.halle_id && !x.livestream), s => s.halle_id);
+  return { erste, proSaison, einmal: anzahl.filter(x => x.n === 1).map(x => x.key) };
+}
